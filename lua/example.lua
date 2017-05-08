@@ -11,22 +11,43 @@ local tile = {
 	"STREAM"
 }
 
-hardware.add_tile(tile)
-hardware.add_tile(tile)
-hardware.add_tile(tile)
-hardware.add_tile(tile)
+hardware:add_tile(tile)
+hardware:add_tile(tile)
 
 local problem = dcop.new(hardware)
 
 local agent1 = dcop.agent.new()
 local agent2 = dcop.agent.new()
 local agent3 = dcop.agent.new()
-local agent4 = dcop.agent.new()
-local agent5 = dcop.agent.new()
-problem.add_agent(agent1)
-problem.add_agent(agent2)
-problem.add_agent(agent3)
-problem.add_agent(agent4)
-problem.add_agent(agent5)
+problem:add_agent(agent1)
+problem:add_agent(agent2)
+problem:add_agent(agent3)
 
+agent1:claim_resource(hardware, 1)
+agent1:claim_resource(hardware, 6)
+agent2:claim_resource(hardware, 7)
+agent2:claim_resource(hardware, 8)
+agent2:claim_resource(hardware, 9)
 
+local c1 = dcop.constraint.new("NEC_RE", function(a)
+	local i =  0
+	for _, r in ipairs(a.view) do
+		if r == a then
+			i = i + 1
+		end
+	end
+	if i >= 2 then
+		return 0
+	else
+		return math.huge
+	end
+end, agent1)
+agent1:add_constraint(c1)
+
+agent1:neighbors()
+
+agent1:rate_view()
+
+-- agent3 invading
+
+print("TEST FINISHED.")

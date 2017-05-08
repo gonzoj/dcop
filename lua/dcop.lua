@@ -4,8 +4,25 @@ local table = require("table")
 
 module("dcop")
 
+local function typeof(o)
+	return base.type(o) == "table" and base.getmetatable(o) and base.getmetatable(o).__object_type or nil
+end
+
 local function check_object_type(o, t)
-	base.assert(base.type(o) == "table" and base.getmetatable(o) and base.getmetatable(o).__object_type == t, "'" .. base.tostring(o) .. "' is not of type '" .. t .. "'")
+	base.assert(typeof(o) == t, "'" .. base.tostring(o) .. "' is not of type '" .. t .. "'")
+end
+
+local function contains(t, s, i, f)
+	base.assert(base.type(t) == "table")
+	base.assert(base.type(i) == "function" or i == nil)
+	base.assert(base.type(f) == "function" or f == nil)
+
+	for _, v in i and i(t) or base.ipairs(t) do
+		if f and f(v, s) or v == s then
+			return true
+		end
+	end
+	return false
 end
 
 resource = {}
@@ -27,7 +44,7 @@ resource.new = function(t, tile)
 	mt.__object_type = "resource"
 
 	r.type = t
-	r.status = status.UNKNOWN
+	r.status = resource.status.FREE
 	r.tile = tile
 
 	return r
@@ -62,7 +79,7 @@ hardware.new = function()
 		this.number_of_tiles = this.number_of_tiles + 1
 
 		for _, r in base.ipairs(t) do
-			local resource = resource_new(base.tostring(r), this.number_of_tiles)
+			local resource = resource.new(base.tostring(r), this.number_of_tiles)
 			this:add_resource(resource)
 		end
 	end
@@ -80,23 +97,49 @@ agent.new = function()
 
 	mt.__object_type = "agent"
 
-	local neighbors = {}
-	local constraints = {}
-	local add_constraint = function(this, c)
+	a.constraints = {}
+	a.add_constraint = function(this, c)
 		check_object_type(this, "agent")
 		check_object_type(c, "constraint")
 
 		table.insert(this.constraints, c)
 	end
-	local view = {}
-	local rate_view = function(this)
+	a.view = {}
+	a.rate_view = function(this)
 		check_object_type(this, "agent")
 
 		local rating = 0
 		for _, c in base.ipairs(this.constraints) do
-			rating = rating + c(this.view)
+			rating = rating + c.rate(c.args)
 		end
 		return rating
+	end
+	a.neighbors = function(this)
+		check_object_type(this, "agent")
+
+		local n = {}
+
+		local process_constraint
+		process_constraint = function(agent, list, args)
+			for _, a in base.ipairs(args) do
+				if typeof(a) == "agent" and a ~= agent and not contains(list, a) then
+					table.insert(list, a)
+				elseif typeof(a) == "constraint" then
+					process_constraint(agent, list, a.args)
+				end
+			end
+		end
+		process_constraint(this, n, this.constraints)
+
+		return n
+	end
+	a.claim_resource = function(this, hw, r)
+		check_object_type(this, "agent")
+		check_object_type(hw, "hardware")
+		base.assert(base.type(r) == "number", "resource argument must be a number")
+
+		this.view[r] = a
+		hw.resources[r].status = a
 	end
 
 	return a
@@ -104,9 +147,10 @@ end
 
 constraint = {}
 
-constraint.new = function(n, f)
+constraint.new = function(n, f, a)
 	base.assert(base.type(n) == "string", "constraint.name must be a string")
 	base.assert(base.type(f) == "function", "constraint.rate must be a function")
+	base.assert(base.type(a) == "table", "constraint.args must be a table")
 
 	local c = {}
 
@@ -117,6 +161,7 @@ constraint.new = function(n, f)
 
 	c.name = n
 	c.rate = f
+	c.args = a
 
 	return c
 end
