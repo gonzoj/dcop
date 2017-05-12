@@ -67,7 +67,7 @@ hardware.new = function()
 		check_object_type(this, "hardware")
 		check_object_type(r, "resource")
 
-		base.assert(r.tile <= this.number_of_tiles, "unknown tile " .. r.tile)
+		base.assert(r.tile > 0 and r.tile <= this.number_of_tiles, "unknown tile " .. r.tile)
 
 		table.insert(this.resources, r)
 	end
@@ -84,18 +84,34 @@ hardware.new = function()
 		end
 	end
 
+	hw.get_tile = function(this, t)
+		check_object_type(this, "hardware")
+		base.assert(t > 0 and t <= this.number_of_tiles, "unknown tile " .. t)
+
+		local tile = {}
+		for _, r in base.ipairs(this.resources) do
+			if r.tile == t then
+				table.insert(tile, r)
+			end
+		end
+
+		return tile
+	end
+
 	return hw
 end
 
 agent = {}
 
-agent.new = function()
+agent.new = function(i)
 	local a = {}
 
 	local mt = {}
 	base.setmetatable(a, mt)
 
 	mt.__object_type = "agent"
+
+	a.id = i
 
 	a.constraints = {}
 	a.add_constraint = function(this, c)
@@ -110,7 +126,7 @@ agent.new = function()
 
 		local rating = 0
 		for _, c in base.ipairs(this.constraints) do
-			rating = rating + c.rate(c.args)
+			rating = rating + c.eval(c.args)
 		end
 		return rating
 	end
@@ -149,7 +165,7 @@ constraint = {}
 
 constraint.new = function(n, f, a)
 	base.assert(base.type(n) == "string", "constraint.name must be a string")
-	base.assert(base.type(f) == "function", "constraint.rate must be a function")
+	base.assert(base.type(f) == "function", "constraint.eval must be a function")
 	base.assert(base.type(a) == "table", "constraint.args must be a table")
 
 	local c = {}
@@ -160,7 +176,7 @@ constraint.new = function(n, f, a)
 	mt.__object_type = "constraint"
 
 	c.name = n
-	c.rate = f
+	c.eval = f
 	c.args = a
 
 	return c
@@ -185,7 +201,17 @@ function new(hw)
 		check_object_type(agent, "agent")
 
 		table.insert(this.agents, agent)
+		if not agent.id then
+			agent.id = table.maxn(this.agents)
+		end
 	end
 
 	return p
 end
+
+function load(this)
+	check_object_type(this, "dcop")
+
+	base.__dcop_load(this)
+end
+
