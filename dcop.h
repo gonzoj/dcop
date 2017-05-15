@@ -1,8 +1,6 @@
 #ifndef DCOP_H_
 #define DCOP_H_
 
-#include <pthread.h>
-
 #include <lua.h>
 
 #define for_each(l, o) for (int i = 0; i < l##_n; i++) { o(l[i]) }
@@ -11,7 +9,10 @@
 
 typedef struct {
 	const char *type;
-	int status;
+	enum {
+		UNKNOWN,
+		FREE
+	} status;
 	int tile;
 } resource;
 
@@ -22,8 +23,8 @@ typedef struct {
 } hardware;
 
 typedef struct {
-	pthread_t tid;
 	int id;
+	int view_n;
 	resource *view;
 	int neighbors_n;
 	agent **neighbors;

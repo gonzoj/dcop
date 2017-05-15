@@ -1,5 +1,3 @@
-#include <math.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -215,10 +213,11 @@ static void agent_load(lua_State *L, agent *a) {
 
 	lua_getfield(L, -2, "view");
 	int t = lua_gettop(L);
+	a->view_n = 0;
 	lua_pushnil(L);
 	while (lua_next(L, t)) {
-		a->view = (resource *) realloc(a->view, ++i * sizeof(resource));
-		resource_load(L, &a->view[i - 1]);
+		a->view = (resource *) realloc(a->view, ++a->view_n * sizeof(resource));
+		resource_load(L, &a->view[a->view_n - 1]);
 		lua_pop(L, 1);
 	}
 	
@@ -348,5 +347,29 @@ error:
 	dcop_free(dcop);
 
 	return NULL;
+}
+
+void agent_merge_view(agent *agent, resource *view) {
+	for (int i = 0; i < agent->view_n; i++) {
+		if (view[i] > 0) agent->view[i] = view[i];
+	}
+}
+
+void agent_clear_view(agent *agent) {
+	resource r
+	for_each_entry(agent->view, r) {
+		r.status = resource.status.UNKNWON;
+	}
+}
+
+double agent_evaluate(agent *agent) {
+	double r = 0;
+
+	constraint c;
+	for_each_entry(agent->constraints, c) {
+		r += c.eval(c);
+	}
+
+	return r;
 }
 
