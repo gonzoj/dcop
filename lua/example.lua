@@ -29,7 +29,11 @@ agent2:claim_resource(hardware, 7)
 agent2:claim_resource(hardware, 8)
 agent2:claim_resource(hardware, 9)
 
-local c1 = dcop.constraint.new("NEC_RE", function(a)
+local c1 = dcop.constraint.new("NEC_RE", function(args)
+	--local a = args[1]
+	print("evaluating constraint NEC_RE for agent " .. 0)
+	return 0
+	--[[
 	local i =  0
 	for _, r in ipairs(a.view) do
 		if r == a then
@@ -41,13 +45,16 @@ local c1 = dcop.constraint.new("NEC_RE", function(a)
 	else
 		return math.huge
 	end
-end, agent1)
+	--]]
+end, { agent1 })
 agent1:add_constraint(c1)
 
-agent1:neighbors()
+--agent1:neighbors()
 
 agent1:rate_view()
 
 -- agent3 invading
+
+problem:load()
 
 print("TEST FINISHED.")

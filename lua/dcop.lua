@@ -29,7 +29,8 @@ resource = {}
 
 resource.status = {
 	UNKNOWN = -1,
-	FREE = 0
+	FREE = 0,
+	TAKEN = 1
 }
 
 resource.new = function(t, tile)
@@ -154,8 +155,11 @@ agent.new = function(i)
 		check_object_type(hw, "hardware")
 		base.assert(base.type(r) == "number", "resource argument must be a number")
 
-		this.view[r] = a
-		hw.resources[r].status = a
+		this.view[r] = resource.new(hw.resources[r].type, hw.resources[r].tile)
+		this.view[r].status = resource.status.TAKEN
+		this.view[r].owner = this.id
+		hw.resources[r].status = resource.status.TAKEN
+		this.view[r].owner = this.id
 	end
 
 	return a
@@ -204,14 +208,22 @@ function new(hw)
 		if not agent.id then
 			agent.id = table.maxn(this.agents)
 		end
+
+		for i, r in base.ipairs(this.hardware.resources) do
+			if not agent.view[i] then
+				agent.view[i] = resource.new(r.type, r.tile)
+				agent.view[i].status = resource.status.UNKNOWN
+			end
+		end
+	end
+
+	p.load = function(this)
+		check_object_type(this, "dcop")
+
+		base.print("trying to call C __dcop_laod")
+		base.__dcop_load(this)
 	end
 
 	return p
-end
-
-function load(this)
-	check_object_type(this, "dcop")
-
-	base.__dcop_load(this)
 end
 
