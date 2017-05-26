@@ -3,14 +3,15 @@
 
 #include "dcop.h"
 #include "list.h"
+#include "view.h"
 
 typedef struct hardware {
 	int number_of_tiles;
 	int number_of_resources;
-	struct list_head resources;
+	view_t *view;
 } hardware_t;
 
-hardware_t * hardware_new();
+#define hardware_new() (hardware_t *) calloc(1, sizeof(hardware_t))
 
 void hardware_free(hardware_t *hw);
 

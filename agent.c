@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,6 +11,7 @@
 #include "dcop.h"
 #include "list.h"
 #include "resource.h"
+#include "view.h"
 
 agent_t * agent_new() {
 	agent_t *a = (agent_t *) calloc(1, sizeof(agent_t));
@@ -20,7 +22,6 @@ agent_t * agent_new() {
 	INIT_LIST_HEAD(&a->msg_queue);
 	INIT_LIST_HEAD(&a->constraints);
 	INIT_LIST_HEAD(&a->neighbors);
-	INIT_LIST_HEAD(&a->view);
 
 	return a;
 }
@@ -32,10 +33,7 @@ void agent_free(agent_t *a) {
 			message_free(m);
 		}
 
-		for_each_entry_safe(resource_t, r, _r, &a->view) {
-			list_del(&r->_l);
-			resource_free(r);
-		}
+		view_free(a->view);
 
 		for_each_entry_safe(neighbor_t, n, _n, &a->neighbors) {
 			list_del(&n->_l);
@@ -70,25 +68,26 @@ message_t * message_new(void *buf, void (*free)(void *)) {
 	return msg;
 }
 
-void agent_load(struct dcop *dcop, agent_t *a) {
-	a->dcop = dcop;
-
+void agent_load(dcop_t *dcop, agent_t *a) {
 	lua_getfield(dcop->L, -1, "id");
 	a->id = lua_tonumber(dcop->L, -1);
 
 	lua_getfield(dcop->L, -2, "view");
-	int t = lua_gettop(dcop->L);
-	lua_pushnil(dcop->L);
-	while (lua_next(dcop->L, t)) {
-		resource_t *r = resource_new();
-		resource_load(dcop, r);
-		list_add_tail(&r->_l, &a->view);
-	}
-	
+	a->view = view_new();
+	view_load(dcop, a->view);
+
 	lua_pop(dcop->L, 3);
 }
 
-void agent_load_neighbors(struct dcop *dcop, agent_t *a) {
+static bool agent_is_neighbor(agent_t *a, agent_t *b) {
+	for_each_entry(neighbor_t, n, &a->neighbors) {
+		if (n->agent->id == b->id) return true;
+	}
+
+	return false;
+}
+
+void agent_load_neighbors(dcop_t *dcop, agent_t *a) {
 	lua_getfield(dcop->L, -1, "neighbors");
 	lua_pushvalue(dcop->L, -2);
 	if (lua_pcall(dcop->L, 1, 1, 0)) {
@@ -104,8 +103,15 @@ void agent_load_neighbors(struct dcop *dcop, agent_t *a) {
 	while (lua_next(dcop->L, t)) {
 		lua_getfield(dcop->L, -1, "id");
 		int id = lua_tonumber(dcop->L, -1);
-		list_add_tail(&neighbor_new(dcop_get_agent(dcop, id))->_l, &a->neighbors);
-		a->number_of_neighbors++;
+		agent_t *n = dcop_get_agent(dcop, id);
+		if (!agent_is_neighbor(a, n)) {
+			list_add_tail(&neighbor_new(n)->_l, &a->neighbors);
+			a->number_of_neighbors++;
+		}
+		if (!agent_is_neighbor(n, a)) {
+			list_add_tail(&neighbor_new(a)->_l, &n->neighbors);
+			n->number_of_neighbors++;
+		}
 
 		lua_pop(dcop->L, 2);
 	}
@@ -113,7 +119,7 @@ void agent_load_neighbors(struct dcop *dcop, agent_t *a) {
 	lua_pop(dcop->L, 1);
 }
 
-void agent_load_constraints(struct dcop *dcop, agent_t *a) {
+void agent_load_constraints(dcop_t *dcop, agent_t *a) {
 	lua_getfield(dcop->L, -1, "constraints");
 
 	int t = lua_gettop(dcop->L);
@@ -127,56 +133,24 @@ void agent_load_constraints(struct dcop *dcop, agent_t *a) {
 	lua_pop(dcop->L, 1);
 }
 
-void agent_merge_view(agent_t *agent, struct list_head *view) {
-	for (resource_t *i = list_entry(agent->view.prev, typeof(*i), _l), 
-	     *j = list_entry(view->prev, typeof(*j), _l);
-	     &i->_l != &agent->view && &j->_l != view;
-	     i = list_entry(i->_l.prev, typeof(*i), _l),
-	     j = list_entry(j->_l.prev, typeof(*j), _l)) {
-	     		if (j->status > RESOURCE_STATUS_FREE) i->status = j->status;
-	     }
+void agent_update_view(agent_t *agent, view_t *new) {
+	view_free(agent->view);
+	agent->view = new;
 }
 
-void agent_clear_view(agent_t *agent) {
-	for_each_entry(resource_t, r, &agent->view) {
-		r->status = RESOURCE_STATUS_UNKNOWN;
-	}
-}
-
-void agent_update_view(agent_t *agent, struct list_head *new) {
-	for_each_entry_safe(resource_t, r, _r, &agent->view) {
-		list_del(&r->_l);
-		resource_free(r);
-	}
-
-	agent->view = *new;
-}
-
-void agent_clone_view(struct list_head *view, struct list_head *clone) {
-	for_each_entry(resource_t, r, view) {
-		resource_t *_r = resource_new();
-		memcpy(_r, r, sizeof(resource_t));
-		_r->type = strdup(r->type);
-		list_add_tail(&_r->_l, clone);
-	}
-}
-
-void agent_free_view(struct list_head *view) {
-	for_each_entry_safe(resource_t, r, _r, view) {
-		list_del(&r->_l);
-		resource_free(r);
-	}
-}
-
-double agent_evaluate(agent_t *agent) {
+double agent_evaluate(dcop_t *dcop, agent_t *agent) {
 	double r = 0;
 
+	//printf("evaluating view:\n");
+	//view_dump(agent->view);
+
+	pthread_mutex_lock(&dcop->mt);
 	for_each_entry(constraint_t, c, &agent->constraints) {
-		printf("constraint: %s\n", c->name);
-		printf("evaluating something for agent %i\n", agent->id);
 		r += c->eval(c);
-		printf("done\n");
 	}
+	pthread_mutex_unlock(&dcop->mt);
+
+	//printf("utility: %f\n", r);
 
 	return r;
 }
@@ -207,9 +181,11 @@ message_t * agent_recv(agent_t *r) {
 }
 
 void agent_refresh(dcop_t *dcop, agent_t *a) {
-	for_each_entry(resource_t, r, &a->view) {
+	pthread_mutex_lock(&dcop->mt);
+	for_each_entry(resource_t, r, &a->view->resources) {
 		resource_refresh(dcop, r);
 	}
+	pthread_mutex_unlock(&dcop->mt);
 }
 
 int agent_create_thread(agent_t *a, void * (*algorithm)(void *), void *arg) {

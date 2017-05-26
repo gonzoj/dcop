@@ -159,7 +159,7 @@ agent.new = function(i)
 		this.view[r].status = resource.status.TAKEN
 		this.view[r].owner = this.id
 		hw.resources[r].status = resource.status.TAKEN
-		this.view[r].owner = this.id
+		hw.resources[r].owner = this.id
 	end
 
 	return a

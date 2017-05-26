@@ -4,18 +4,21 @@
 #include <pthread.h>
 #include <stdlib.h>
 
+#include <lua.h>
+
 #include "dcop.h"
 #include "list.h"
+#include "view.h"
 
 typedef struct agent {
 	struct list_head _l;
-	dcop_t *dcop;
+	//lua_State *L;
 	int id;
 	pthread_t tid;
 	pthread_mutex_t mt;
 	pthread_cond_t cv;
 	struct list_head msg_queue;
-	struct list_head view;
+	view_t *view;
 	int number_of_neighbors;
 	struct list_head neighbors;
 	struct list_head constraints;
@@ -51,17 +54,9 @@ void agent_load_neighbors(dcop_t *dcop, agent_t *a);
 
 void agent_load_constraints(dcop_t *dcop, agent_t *a);
 
-void agent_merge_view(agent_t *a, struct list_head *view);
+void agent_update_view(agent_t *agent, view_t *new);
 
-void agent_clear_view(agent_t *a);
-
-void agent_update_view(agent_t *agent, struct list_head *new);
-
-void agent_clone_view(struct list_head *view, struct list_head *clone);
-
-void agent_free_view(struct list_head *view);
-
-double agent_evaluate(agent_t *a);
+double agent_evaluate(dcop_t *dcop, agent_t *a);
 
 void agent_send(agent_t *s, agent_t *r, message_t *msg);
 

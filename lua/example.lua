@@ -30,13 +30,10 @@ agent2:claim_resource(hardware, 8)
 agent2:claim_resource(hardware, 9)
 
 local c1 = dcop.constraint.new("NEC_RE", function(args)
-	--local a = args[1]
-	print("evaluating constraint NEC_RE for agent " .. 0)
-	return 0
-	--[[
+	local a = args[1]
 	local i =  0
 	for _, r in ipairs(a.view) do
-		if r == a then
+		if r.status == dcop.resource.status.TAKEN and r.owner == a.id then
 			i = i + 1
 		end
 	end
@@ -45,9 +42,8 @@ local c1 = dcop.constraint.new("NEC_RE", function(args)
 	else
 		return math.huge
 	end
-	--]]
-end, { agent1 })
-agent1:add_constraint(c1)
+end, { agent3 })
+agent3:add_constraint(c1)
 
 --agent1:neighbors()
 

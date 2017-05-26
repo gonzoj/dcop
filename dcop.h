@@ -1,6 +1,8 @@
 #ifndef DCOP_H_
 #define DCOP_H_
 
+#include <pthread.h>
+
 #include <lua.h>
 
 typedef struct dcop dcop_t;
@@ -12,6 +14,7 @@ typedef struct dcop dcop_t;
 
 struct dcop {
 	lua_State *L;
+	pthread_mutex_t mt;
 	hardware_t *hardware;
 	int number_of_agents;
 	struct list_head agents;

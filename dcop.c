@@ -42,7 +42,7 @@ agent_t * dcop_get_agent(dcop_t *dcop, int id) {
 }
 
 void dcop_refresh_hardware(dcop_t *dcop) {
-	for_each_entry(resource_t, r, &dcop->hardware->resources) {
+	for_each_entry(resource_t, r, &dcop->hardware->view->resources) {
 		resource_refresh(dcop, r);
 	}
 }
@@ -68,6 +68,8 @@ static void dcop_free(dcop_t *dcop) {
 			list_del(&a->_l);
 			agent_free(a);
 		}
+
+		pthread_mutex_destroy(&dcop->mt);
 
 		free(dcop);
 	}
@@ -158,6 +160,8 @@ static struct dcop * dcop_load(const char *file) {
 		goto error;
 	}
 
+	pthread_mutex_init(&dcop->mt, NULL);
+
 	return dcop;
 
 error:
@@ -183,6 +187,9 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
+	printf("inital resource assignment:\n");
+	view_dump(dcop->hardware->view);
+
 	algorithm_t *mgm = dcop_get_algorithm("mgm");
 	printf("initialize algorithm '%s'\n", mgm->name);
 	mgm->init(dcop, 0, NULL);
@@ -190,13 +197,13 @@ int main(int argc, char **argv) {
 	printf("starting algorithm '%s'\n", mgm->name);
 	mgm->run(dcop);
 
-	//printf("killing algorithm '%s'\n", mgm->name);
-	//mgm->kill(dcop);
-
 	mgm->cleanup(dcop);
 	printf("algorithm '%s' finished\n", mgm->name);
 
 	dcop_refresh(dcop);
+
+	printf("final resource assignment:\n");
+	view_dump(dcop->hardware->view);
 
 	dcop_free(dcop);
 

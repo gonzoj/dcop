@@ -12,9 +12,9 @@ typedef struct resource {
 	int ref;
 	char *type;
 	enum {
-		RESOURCE_STATUS_UNKNOWN,
-		RESOURCE_STATUS_FREE,
-		RESOURCE_STATUS_TAKEN
+		RESOURCE_STATUS_UNKNOWN = -1,
+		RESOURCE_STATUS_FREE = 0,
+		RESOURCE_STATUS_TAKEN = 1
 	} status;
 	int owner;
 	int tile;

@@ -10,6 +10,7 @@
 #include "dcop.h"
 #include "list.h"
 #include "resource.h"
+#include "view.h"
 
 typedef struct mgm_message {
 	enum {
@@ -19,7 +20,7 @@ typedef struct mgm_message {
 		MGM_START
 	} type;
 	union {
-		struct list_head view;
+		view_t *view;
 		struct {
 			double eval;
 			double improve;
@@ -33,17 +34,20 @@ typedef struct mgm_agent {
 	bool can_move;
 	double eval;
 	double improve;
-	struct list_head new_view;
+	view_t *new_view;
 	agent_t *agent;
+	dcop_t *dcop;
 } mgm_agent_t;
 
-static int max_distance = 200;
+static int max_distance = 10;
 
 static bool consistent = true;
 
 #define min(x, y) (x < y ? x : y)
 
 #define mgm_message(m) ((mgm_message_t *) m->buf)
+
+#define DEBUG(a, f, v...) printf("DEBUG: [%i]: ", a->agent->id); printf(f, ## v);
 
 static message_t * mgm_message_new(int type) {
 	mgm_message_t *msg = (mgm_message_t *) calloc(1, sizeof(mgm_message_t));
@@ -66,7 +70,9 @@ static int send_ok(mgm_agent_t *a) {
 		return -1;
 	}
 	if (a->can_move) {
-		agent_update_view(a->agent, &a->new_view);
+		printf("[%i] can move! updating to view ", a->agent->id);
+		view_dump(a->new_view);
+		agent_update_view(a->agent, view_clone(a->new_view));
 	}
 	for_each_entry(agent_t, n, &a->agent->neighbors) {
 		message_t *msg = mgm_message_new(MGM_OK);
@@ -80,17 +86,16 @@ static int send_ok(mgm_agent_t *a) {
 	return 0;
 }
 
-static void permutate_assignment(mgm_agent_t *agent, struct list_head *l, int pos, double *new_eval, struct list_head *new_view) {
-	if (pos == agent->agent->dcop->hardware->number_of_resources) {
-		struct list_head _view = agent->agent->view;
-		agent->agent->view = agent->new_view;
-		agent_refresh(agent->agent->dcop, agent->agent);
-		double eval = agent_evaluate(agent->agent);
-		agent->agent->view = _view;
-		agent_refresh(agent->agent->dcop, agent->agent);
+static void permutate_assignment(mgm_agent_t *agent, struct list_head *l, int pos, double *new_eval, view_t **new_view) {
+	if (pos == agent->dcop->hardware->number_of_resources) {
+		agent_refresh(agent->dcop, agent->agent);
+		double eval = agent_evaluate(agent->dcop, agent->agent);
 		if ((isfinite(eval) && !isfinite(*new_eval)) || (isfinite(eval) && eval < *new_eval)) {
+			printf("[%i] setting new view: ", agent->agent->id);
+			view_dump(agent->agent->view);
 			*new_eval = eval;
-			agent_clone_view(&agent->new_view, new_view);
+			view_free(*new_view);
+			*new_view = view_clone(agent->new_view);
 		}
 	} else {
 		pos++;
@@ -106,19 +111,32 @@ static void permutate_assignment(mgm_agent_t *agent, struct list_head *l, int po
 }
 
 static void improve(mgm_agent_t *a) {
+	view_t *_view = a->agent->view;
+	a->agent->view = a->new_view;
+
 	double eval = INFINITY;
-	LIST_HEAD(new_view);
-	permutate_assignment(a, &a->new_view, 0, &eval, &new_view);
+	view_t *new_view = view_new();
+	permutate_assignment(a, a->new_view->resources.next, 0, &eval, &new_view);
+	DEBUG(a, "new eval: %f\n", eval);
 	a->improve = a->eval - eval;
-	agent_free_view(&a->new_view);
-	a->new_view = new_view;
+	DEBUG(a, "improve: %f\n", a->improve);
+	if (a->improve > 0) {
+		view_free(a->new_view);
+		a->new_view = new_view;
+	} else {
+		view_free(new_view);
+	}
+
+	a->agent->view = _view;
 }
 
 static void send_improve(mgm_agent_t *a) {
-	agent_refresh(a->agent->dcop, a->agent);
-	a->eval = agent_evaluate(a->agent);
+	agent_refresh(a->dcop, a->agent);
+	a->eval = agent_evaluate(a->dcop, a->agent);
+	printf("[%i] eval: %f\n", a->agent->id, a->eval);
 	improve(a);
 	if (a->improve > 0) {
+		DEBUG(a, "improve > 0 -> we can move!\n");
 		a->can_move = true;
 	} else {
 		a->can_move = false;
@@ -144,21 +162,26 @@ static void * mgm(void *arg) {
 	agent->can_move = false;
 	agent->eval = 0;
 	agent->improve = 0;
-	INIT_LIST_HEAD(&agent->new_view);
-	agent_clone_view(&agent->agent->view, &agent->new_view);	
+	agent->new_view = view_clone(agent->agent->view);	
 
 	bool stop = false;
 	int counter = 0;
-	double improve = 0;
 	while (!stop) {
-		printf("mgm: waiting for messages...\n");
+		//printf("mgm: waiting for messages...\n");
 		message_t *msg = agent_recv(agent->agent);
-		printf("received message (%i)\n", mgm_message(msg)->type);
+		const char *type_string;
+		switch (mgm_message(msg)->type) {
+			case MGM_OK: type_string = "MGM_OK"; break;
+			case MGM_IMPROVE: type_string = "MGM_IMPROVE"; break;
+			case MGM_END: type_string = "MGM_END"; break;
+			case MGM_START: type_string = "MGM_START"; break;
+		}
+		//printf("received message (%s)\n", type_string);
 
 		switch(mgm_message(msg)->type) {
 			case MGM_OK:
 				counter++;
-				agent_merge_view(agent->agent, &mgm_message(msg)->view);
+				view_merge(agent->agent->view, mgm_message(msg)->view);
 				if (counter == agent->agent->number_of_neighbors || !agent->agent->number_of_neighbors) {
 					send_improve(agent);
 					counter = 0;
@@ -168,16 +191,18 @@ static void * mgm(void *arg) {
 			case MGM_IMPROVE:
 				counter++;
 				agent->term = min(agent->term, mgm_message(msg)->term);
-				if (mgm_message(msg)->improve > improve || (mgm_message(msg)->improve == improve && agent->agent->id > msg->from->id)) {
+				if (mgm_message(msg)->improve > agent->improve || (mgm_message(msg)->improve == agent->improve && agent->agent->id > msg->from->id)) {
 					agent->can_move = false;
 				}
 				if (mgm_message(msg)->eval > 0) consistent = false;
 				if (counter == agent->agent->number_of_neighbors || !agent->agent->number_of_neighbors) {
 					if (send_ok(agent)) {
+						DEBUG(agent, "are we breaking here?\n");
 						stop = true;
 						break;
 					}
-					agent_clear_view(agent->agent);
+					printf("[%i] clearing view...\n", agent->agent->id);
+					view_clear(agent->agent->view);
 					counter = 0;
 				}
 				break;
@@ -203,6 +228,7 @@ static void mgm_init(dcop_t *dcop, int argc, char **argv) {
 	for_each_entry(agent_t, a, &dcop->agents) {
 		mgm_agent_t *_a = (mgm_agent_t *) calloc(1, sizeof(mgm_agent_t));
 		_a->agent = a;
+		_a->dcop = dcop;
 		agent_create_thread(a, mgm, _a);
 	}
 
@@ -212,7 +238,9 @@ static void mgm_init(dcop_t *dcop, int argc, char **argv) {
 static void mgm_cleanup(dcop_t *dcop) {
 	for_each_entry(agent_t, a, &dcop->agents) {
 		mgm_agent_t *_a = (mgm_agent_t *) agent_cleanup_thread(a);
-		agent_free_view(&_a->new_view);
+		printf("final view of agent %i:\n", _a->agent->id);
+		view_dump(_a->agent->view);
+		view_free(_a->new_view);
 		free(_a);
 	}
 }
