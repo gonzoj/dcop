@@ -28,5 +28,7 @@ void dcop_refresh_hardware(dcop_t *dcop);
 void dcop_refresh_agents(dcop_t *dcop);
 void dcop_refresh(dcop_t *dcop);
 
+void dcop_merge_view(dcop_t *dcop);
+
 #endif /* DCOP_H_ */
 

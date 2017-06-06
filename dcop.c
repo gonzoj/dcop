@@ -15,6 +15,8 @@
 #include "mgm.h"
 #include "resource.h"
 
+#include <sim_api.h>
+
 static LIST_HEAD(algorithms);
 
 void dcop_register_algorithm(algorithm_t *a) {
@@ -56,6 +58,14 @@ void dcop_refresh_agents(dcop_t *dcop) {
 void dcop_refresh(dcop_t *dcop) {
 	dcop_refresh_hardware(dcop);
 	dcop_refresh_agents(dcop);
+}
+
+void dcop_merge_view(dcop_t *dcop) {
+	view_clear(dcop->hardware->view);
+
+	for_each_entry(agent_t, a, &dcop->agents) {
+		view_merge(dcop->hardware->view, a->view, true);
+	}
 }
 
 static void dcop_free(dcop_t *dcop) {
@@ -105,10 +115,11 @@ static int __dcop_load(lua_State *L) {
 	lua_pushnil(L);
 	for_each_entry(agent_t, a, &dcop->agents) {
 		lua_next(L, t);
-		printf("loading neighbors...\n");
+
+		printf("loading neighbors for agent %i\n", a->id);
 		agent_load_neighbors(dcop, a);
 
-		printf("loading constraints...\n");
+		printf("loading constraints for agent %i\n", a->id);
 		agent_load_constraints(dcop, a);
 
 		lua_pop(L, 1);
@@ -139,6 +150,9 @@ static struct dcop * dcop_load(const char *file) {
 	lua_newtable(dcop->L);
 	lua_setglobal(dcop->L, "__resources");
 
+	lua_newtable(dcop->L);
+	lua_setglobal(dcop->L, "__agents");
+
 	lua_register(dcop->L, "__dcop_load", __dcop_load);
 
 	lua_getglobal(dcop->L, "package");
@@ -160,7 +174,11 @@ static struct dcop * dcop_load(const char *file) {
 		goto error;
 	}
 
-	pthread_mutex_init(&dcop->mt, NULL);
+	pthread_mutexattr_t attr;
+	pthread_mutexattr_init(&attr);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+	pthread_mutex_init(&dcop->mt, &attr);
+	pthread_mutexattr_destroy(&attr);
 
 	return dcop;
 
@@ -186,23 +204,34 @@ int main(int argc, char **argv) {
 		printf("error: failed to load dcop specification\n");
 		exit(1);
 	}
+	printf("completed loading '%s'\n", spec);
 
-	printf("inital resource assignment:\n");
+	printf("\ninital resource assignment:\n");
 	view_dump(dcop->hardware->view);
+	printf("\n");
 
 	algorithm_t *mgm = dcop_get_algorithm("mgm");
 	printf("initialize algorithm '%s'\n", mgm->name);
 	mgm->init(dcop, 0, NULL);
 
-	printf("starting algorithm '%s'\n", mgm->name);
+	SimRoiStart();
+
+	printf("starting algorithm '%s'\n\n", mgm->name);
 	mgm->run(dcop);
 
+	SimRoiEnd();
+
 	mgm->cleanup(dcop);
-	printf("algorithm '%s' finished\n", mgm->name);
+	printf("\nalgorithm '%s' finished\n", mgm->name);
+
+	printf("\nprevious resource assignment:\n");
+	view_dump(dcop->hardware->view);
 
 	dcop_refresh(dcop);
 
-	printf("final resource assignment:\n");
+	dcop_merge_view(dcop);
+
+	printf("\nfinal resource assignment:\n");
 	view_dump(dcop->hardware->view);
 
 	dcop_free(dcop);

@@ -63,43 +63,20 @@ void free_native_constraints() {
 	}
 }
 
-static int traceback (lua_State *L) {
-	printf("TRACEBACK\n");
-	if (!lua_isstring(L, 1))  /* 'message' not a string? */
-		return 1;  /* keep it intact */
-	lua_getfield(L, LUA_GLOBALSINDEX, "debug");
-	if (!lua_istable(L, -1)) {
-		lua_pop(L, 1);
-		return 1;
-	}
-	lua_getfield(L, -1, "traceback");
-	if (!lua_isfunction(L, -1)) {
-		lua_pop(L, 2);
-		return 1;
-	}
-	lua_pushvalue(L, 1);  /* pass error message */
-	lua_pushinteger(L, 2);  /* skip this function and traceback */
-	lua_call(L, 2, 1);  /* call debug.traceback */
-	printf("TB: %s\n", lua_tostring(L, -1));
-	return 1;
-}
-
 static double constraint_evaluate_lua(constraint_t *c) {
-	lua_pushcfunction(c->L, traceback);
-	int e = lua_gettop(c->L);
 	lua_getglobal(c->L, "__constraints");
 	lua_rawgeti(c->L, -1, c->ref);
 	lua_getfield(c->L, -1, "eval");
-	lua_getfield(c->L, -2, "args");
-	if (lua_pcall(c->L, 1, 1, e)) {
+	lua_getfield(c->L, -2, "param");
+	if (lua_pcall(c->L, 1, 1, 0)) {
 		printf("error: failed to call function 'eval' evaluating constraint '%s' (%s)\n", c->name, lua_tostring(c->L, -1));
-		lua_pop(c->L, 4);
+		lua_pop(c->L, 3);
 
 		return 0;
 	}
 	double rating = lua_tonumber(c->L, -1);
 
-	lua_pop(c->L, 4);
+	lua_pop(c->L, 3);
 
 	return rating;
 }
@@ -143,7 +120,8 @@ void constraint_load(dcop_t *dcop, constraint_t *c) {
 	}
 	if (c->type == CONSTRAINT_TYPE_LUA) c->eval = constraint_evaluate_lua;
 
-	lua_getfield(dcop->L, -2, "args");
+	lua_getfield(dcop->L, -2, "param");
+	lua_getfield(dcop->L, -1, "args");
 	if (lua_type(dcop->L, -1) == LUA_TTABLE && check_object_type_lua(dcop->L) == OBJECT_TYPE_UNKNOWN) {
 		int t = lua_gettop(dcop->L);
 		lua_pushnil(dcop->L);
@@ -174,6 +152,7 @@ void constraint_load(dcop_t *dcop, constraint_t *c) {
 					break;
 
 				case OBJECT_TYPE_RESOURCE:
+					// should probably use the correct ref and not reload?
 					arg->resource = resource_new();
 					resource_load(dcop, arg->resource);
 					break;
@@ -190,7 +169,7 @@ void constraint_load(dcop_t *dcop, constraint_t *c) {
 		printf("error: constraint arguments must be within a table\n");
 	}
 
-	lua_pop(dcop->L, 2);
+	lua_pop(dcop->L, 3);
 
 	c->L = dcop->L;
 	lua_getglobal(dcop->L, "__constraints");
