@@ -5,6 +5,7 @@
 #include <lua.h>
 
 #include "agent.h"
+#include "console.h"
 #include "constraint.h"
 #include "list.h"
 
@@ -73,7 +74,7 @@ static double constraint_evaluate_lua(constraint_t *c) {
 	lua_getfield(c->L, -1, "eval");
 	lua_getfield(c->L, -2, "param");
 	if (lua_pcall(c->L, 1, 1, 0)) {
-		printf("error: failed to call function 'eval' evaluating constraint '%s' (%s)\n", c->name, lua_tostring(c->L, -1));
+		print_error("failed to call function 'eval' evaluating constraint '%s' (%s)\n", c->name, lua_tostring(c->L, -1));
 		lua_pop(c->L, 3);
 
 		return 0;
@@ -163,7 +164,7 @@ void constraint_load(agent_t *agent, constraint_t *c) {
 					break;
 
 				default:
-					printf("warning: object type of argument for constraint '%s' unknown\n", c->name);
+					print_warning("object type of argument for constraint '%s' unknown\n", c->name);
 					arg->ref = luaL_ref(agent->L, LUA_GLOBALSINDEX);
 					break;
 			}
@@ -171,7 +172,7 @@ void constraint_load(agent_t *agent, constraint_t *c) {
 			list_add_tail(&arg->_l, &c->args);
 		}
 	} else {
-		printf("error: constraint arguments must be within a table\n");
+		print_error("constraint arguments must be within a table\n");
 	}
 
 	lua_pop(agent->L, 3);

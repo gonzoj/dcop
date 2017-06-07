@@ -6,6 +6,7 @@
 
 #include <lua.h>
 
+#include "console.h"
 #include "list.h"
 #include "resource.h"
 #include "view.h"
@@ -181,7 +182,7 @@ char * view_to_string(view_t *v) {
 void view_dump(view_t *v) {
 	char *string = view_to_string(v);
 
-	printf(string);
+	print(string);
 
 	free(string);
 }

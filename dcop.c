@@ -1,3 +1,4 @@
+#include <getopt.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +11,7 @@
 
 #include "agent.h"
 #include "algorithm.h"
+#include "console.h"
 #include "constraint.h"
 #include "dcop.h"
 #include "hardware.h"
@@ -20,6 +22,11 @@
 #include <sim_api.h>
 
 static LIST_HEAD(algorithms);
+
+static char *algorithm = NULL;
+static char *spec = NULL;
+static int algorithm_argc = 0;
+static char **algorithm_argv = NULL;
 
 void dcop_register_algorithm(algorithm_t *a) {
 	list_add_tail(&a->_l, &algorithms);
@@ -68,7 +75,7 @@ void dcop_merge_view(dcop_t *dcop) {
 
 	for_each_entry(agent_t, a, &dcop->agents) {
 		if (!clear && !view_compare(dcop->hardware->view, a->view)) {
-			printf("warning: inconsistent hardware view\n");
+			print_warning("inconsistent hardware view\n");
 		}
 
 		view_merge(dcop->hardware->view, a->view, true);
@@ -100,19 +107,19 @@ static int __dcop_load(lua_State *L) {
 	dcop_t *dcop = lua_touserdata(L, -1);
 	lua_pop(L, 1);
 	if (!dcop) {
-		printf("error: failed to retrieve '__this' userdata\n");
+		print_error("failed to retrieve '__this' userdata\n");
 
 		return 0;
 	}
 
 	dcop->L = L;
 
-	printf("loading hardware...\n");
+	print("loading hardware...\n");
 	dcop->hardware = (hardware_t *) calloc(1, sizeof(hardware_t));
 	lua_getfield(L, -1, "hardware");
 	hardware_load(dcop->L, dcop->hardware);
 
-	printf("loading agents...\n");
+	print("loading agents...\n");
 	dcop->number_of_agents = 0;
 	lua_getfield(L, -1, "agents");
 	int t = lua_gettop(L);
@@ -120,7 +127,7 @@ static int __dcop_load(lua_State *L) {
 	while (lua_next(L, t)) {
 		agent_t *a = agent_new();
 		agent_load(dcop, a);
-		printf("loading agent %i\n", a->id);
+		print("loading agent %i\n", a->id);
 
 		list_add_tail(&a->_l, &dcop->agents);
 
@@ -131,7 +138,7 @@ static int __dcop_load(lua_State *L) {
 	for_each_entry(agent_t, a, &dcop->agents) {
 		lua_next(L, t);
 
-		printf("loading neighbors for agent %i\n", a->id);
+		print("loading neighbors for agent %i\n", a->id);
 		agent_load_neighbors(a);
 
 		lua_pop(L, 1);
@@ -147,7 +154,7 @@ static int __dcop_load_agent(lua_State *L) {
 	agent_t *agent = (agent_t *) lua_touserdata(L, -1);
 	lua_pop(L, 1);
 	if (!agent) {
-		printf("error: failed to retrieve '__this' userdata\n");
+		print_error("failed to retrieve '__this' userdata\n");
 
 		return 0;
 	}
@@ -158,12 +165,12 @@ static int __dcop_load_agent(lua_State *L) {
 	lua_pushnumber(L, agent->id);
 	lua_gettable(L, -2);
 
-	printf("loading view of agent %i\n", agent->id);
+	print("loading view of agent %i\n", agent->id);
 	agent_load_view(agent);
 
 	agent_load_agent_view(agent);
 
-	printf("loading constraints of agent %i...\n", agent->id);
+	print("loading constraints of agent %i...\n", agent->id);
 	agent_load_constraints(agent);
 
 	lua_setglobal(L, "__agent");
@@ -201,7 +208,7 @@ static lua_State * dcop_create_lua_state(void *object, const char *file, int (*l
 	free(path);
 
 	if (luaL_dofile(L, file)) {
-		printf("error: failed to load file '%s': %s\n", file, lua_tostring(L, -1));
+		print_error("failed to load file '%s': %s\n", file, lua_tostring(L, -1));
 		lua_pop(L, 1);
 
 		lua_close(L);
@@ -241,62 +248,186 @@ int dcop_get_number_of_cores() {
 	return sysconf(_SC_NPROCESSORS_ONLN);
 }
 
+static void usage() {
+	printf("\n");
+	printf("usage:\n");
+	printf("\n");
+	printf("dcop [OPTIONS] SPECIFICATION\n");
+	printf("\n");
+	printf("OPTIONS:\n");
+	printf("	--help\n");
+	printf("		print usage description and exit\n");
+	printf("\n");
+	printf("	--algorithm NAME, -a NAME\n");
+	printf("		use algorithm NAME to solve SPECIFICATION\n");
+	printf("\n");
+	printf("	--logfile FILE, -l FILE\n");
+	printf("		log program output to FILE\n");
+	printf("\n");
+	printf("	--debug , -d\n");
+	printf("		enable debug output\n");
+	printf("\n");
+	printf("	--param PARAMTER, -p PARAMETER\n");
+	printf("		pass PARAMTER to algorithm\n");
+	printf("\n");
+}
+
+static int parse_arguments(int argc, char **argv) {
+	struct option long_options[] = {
+		{ "help", no_argument, NULL, 'h' },
+		{ "algorithm", required_argument, NULL, 'a' },
+		{ "logfile", required_argument, NULL, 'l' },
+		{ "debug", no_argument, NULL, 'd' },
+		{ "param", required_argument, NULL, 'p' },
+		{ 0 }
+	};
+
+	while (true) {
+		int index = -1;
+		int result = getopt_long(argc, argv, "ha:l:dp:", long_options, &index);
+		if (result == -1) {
+			break;
+		}
+
+		switch (result) {
+			case 'h':
+				usage();
+				exit(EXIT_SUCCESS);
+
+			case 'a':
+				algorithm = strdup(optarg);
+				break;
+
+			case 'l':
+				logfile = strdup(optarg);
+				break;
+
+			case 'd':
+				debug = true;
+				break;
+
+			case 'p':
+				algorithm_argv = realloc(algorithm_argv, ++algorithm_argc * sizeof(char *));
+				algorithm_argv[algorithm_argc - 1] = strdup(optarg);
+				break;
+
+			case '?':
+			case ':':
+			default:
+				printf("failed to parse program arguments.\n");
+				goto error;
+		}
+	}
+
+	if (argc - optind < 1) {
+		printf("no specification file given.\n");
+		goto error;
+	} else {
+		spec = strdup(argv[optind]);
+	}
+
+	return 0;
+
+error:
+	if (logfile) {
+		free(logfile);
+	}
+	if (algorithm) {
+		free(algorithm);
+	}
+	if (algorithm_argv) {
+		for (int i = 0; i < algorithm_argc; i++) {
+			free(algorithm_argv[i]);
+		}
+		free(algorithm_argv);
+	}
+
+	return -1;
+}
+
 int main(int argc, char **argv) {
+	if (parse_arguments(argc, argv)) {
+		usage();
+		exit(EXIT_FAILURE);
+	}
+
+	if (!algorithm) {
+		algorithm = strdup("mgm");
+	}
+
+	console_init();
+
 	dcop_init_algorithms();
 
-	if (argc < 2) {
-		printf("error: no dcop specification given\n");
-		exit(1);
-	}
+	print("number of cores available: %i\n", dcop_get_number_of_cores());
 
-	char *spec = argv[argc - 1];
-
-	printf("number of cores available: %i\n", dcop_get_number_of_cores());
-
-	printf("loading dcop specification from '%s'\n", spec);
+	print("loading dcop specification from '%s'\n", spec);
 	dcop_t *dcop = dcop_load(spec);
 	if (!dcop) {
-		printf("error: failed to load dcop specification\n");
-		exit(1);
+		print_error("failed to load dcop specification\n");
+
+		console_cleanup();
+
+		free(algorithm);
+		free(spec);
+		if (algorithm_argv) {
+			for (int i = 0; i < algorithm_argc; i++) {
+				free(algorithm_argv[i]);
+			}
+			free(algorithm_argv);
+		}
+
+		exit(EXIT_FAILURE);
 	}
-	printf("completed loading '%s'\n", spec);
+	print("completed loading '%s'\n", spec);
 
 	if (dcop->number_of_agents > dcop_get_number_of_cores()) {
-		printf("warning: number of agents exceeds available physical cores\n");
+		print_warning("number of agents exceeds available physical cores\n");
 	}
 
-	printf("\ninital resource assignment:\n");
+	print("\ninital resource assignment:\n");
 	view_dump(dcop->hardware->view);
-	printf("\n");
+	print("\n");
 
-	algorithm_t *mgm = dcop_get_algorithm("mgm");
-	printf("initialize algorithm '%s'\n", mgm->name);
-	mgm->init(dcop, 0, NULL);
+	algorithm_t *algo = dcop_get_algorithm(algorithm);
+	print("initialize algorithm '%s'\n", algo->name);
+	algo->init(dcop, algorithm_argc, algorithm_argv);
 
 	SimRoiStart();
 
-	printf("starting algorithm '%s'\n\n", mgm->name);
-	mgm->run(dcop);
+	print("starting algorithm '%s'\n\n", algo->name);
+	algo->run(dcop);
 
 	SimRoiEnd();
 
-	mgm->cleanup(dcop);
-	printf("\nalgorithm '%s' finished\n", mgm->name);
+	algo->cleanup(dcop);
+	print("\nalgorithm '%s' finished\n", algo->name);
 
-	printf("\nprevious resource assignment:\n");
+	print("\nprevious resource assignment:\n");
 	view_dump(dcop->hardware->view);
 
 	dcop_refresh(dcop);
 
 	dcop_merge_view(dcop);
 
-	printf("\nfinal resource assignment:\n");
+	print("\nfinal resource assignment:\n");
 	view_dump(dcop->hardware->view);
 
 	dcop_free(dcop);
 
 	free_native_constraints();
 
-	exit(0);
+	console_cleanup();
+
+	free(algorithm);
+	free(spec);
+	if (algorithm_argv) {
+		for (int i = 0; i < algorithm_argc; i++) {
+			free(algorithm_argv[i]);
+		}
+		free(algorithm_argv);
+	}
+
+	exit(EXIT_SUCCESS);
 }
 

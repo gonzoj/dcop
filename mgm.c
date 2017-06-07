@@ -7,6 +7,7 @@
 
 #include "agent.h"
 #include "algorithm.h"
+#include "console.h"
 #include "dcop.h"
 #include "list.h"
 #include "resource.h"
@@ -52,14 +53,7 @@ static bool consistent = true;
 
 #define mgm_message(m) ((mgm_message_t *) m->buf)
 
-#define DEBUG_OUTPUT
-
-#ifdef DEBUG_OUTPUT
-pthread_mutex_t print_m = PTHREAD_MUTEX_INITIALIZER;
-#define DEBUG(a, f, v...) pthread_mutex_lock(&print_m); printf("DEBUG: [%i]: ", a->agent->id); printf(f, ## v); pthread_mutex_unlock(&print_m)
-#else
-#define DEBUG(a, f, v...)
-#endif
+#define DEBUG_MESSAGE(a, f, v...) do { print_debug("[%i]: ", a->agent->id); DEBUG print(f, ## v); } while (0)
 
 static void mgm_message_free(void *buf) {
 	mgm_message_t *msg = (mgm_message_t *) buf;
@@ -94,7 +88,7 @@ static int send_ok(mgm_agent_t *a) {
 
 	if (a->can_move) {
 		char *s = view_to_string(a->new_view);
-		DEBUG(a, "updating to view:\n%s", s);
+		DEBUG_MESSAGE(a, "updating to view:\n%s", s);
 		free(s);
 
 		view_copy(a->agent->view, a->new_view);
@@ -134,7 +128,7 @@ static void permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 		double improve = get_improvement(a);
 		if (improve > a->improve) {
 			char *s = view_to_string(a->agent->view);
-			DEBUG(a, "considering new view with improvement %f:\n%s", improve, s);
+			DEBUG_MESSAGE(a, "considering new view with improvement %f:\n%s", improve, s);
 			free(s);
 
 			view_copy(*new_view, a->new_view);
@@ -228,7 +222,7 @@ static void * mgm(void *arg) {
 
 	bool stop = false;
 	while (!stop) {
-		//DEBUG(a, "mgm: waiting for messages...\n");
+		//DEBUG_MESSAGE(a, "mgm: waiting for messages...\n");
 
 		message_t *msg = agent_recv_filter(a->agent, filter_mgm_message, (void *) mode);
 
@@ -239,7 +233,7 @@ static void * mgm(void *arg) {
 			case MGM_END: type_string = "MGM_END"; break;
 			case MGM_START: type_string = "MGM_START"; break;
 		}
-		DEBUG(a, "received message (%s)\n", type_string);*/
+		DEBUG_MESSAGE(a, "received message (%s)\n", type_string);*/
 
 		switch(mgm_message(msg)->type) {
 			case MGM_OK:
@@ -252,7 +246,7 @@ static void * mgm(void *arg) {
 						for_each_entry(neighbor_t, n, &a->agent->neighbors) {
 							if (!view_compare(a->agent->view, a->agent->agent_view[n->agent->id])) {
 								char *s = view_to_string(a->agent->agent_view[n->agent->id]);
-								DEBUG(a, "replacing view with agent_view[%i]\n%s", n->agent->id, s);
+								DEBUG_MESSAGE(a, "replacing view with agent_view[%i]\n%s", n->agent->id, s);
 								free(s);
 
 								view_copy(a->agent->view, a->agent->agent_view[n->agent->id]);
@@ -323,10 +317,9 @@ static void mgm_init(dcop_t *dcop, int argc, char **argv) {
 
 		_a->agent = a;
 
-		DEBUG(_a, "initial view of agent:\n");
-#ifdef DEBUG_OUTPUT
-		agent_dump_view(_a->agent);
-#endif
+		DEBUG_MESSAGE(_a, "initial view of agent:\n");
+		DEBUG agent_dump_view(_a->agent);
+
 		agent_create_thread(a, mgm, _a);
 	}
 
@@ -338,10 +331,9 @@ static void mgm_cleanup(dcop_t *dcop) {
 		mgm_agent_t *_a = (mgm_agent_t *) agent_cleanup_thread(a);
 
 		agent_cleanup_thread(_a->agent);
-		DEBUG(_a, "final view of agent:\n");
-#ifdef DEBUG_OUTPUT
-		agent_dump_view(_a->agent);
-#endif
+
+		DEBUG_MESSAGE(_a, "final view of agent:\n");
+		DEBUG agent_dump_view(_a->agent);
 
 		view_free(_a->new_view);
 
@@ -352,11 +344,7 @@ static void mgm_cleanup(dcop_t *dcop) {
 		free(_a);
 	}
 
-	if (!consistent) printf("error: MGM algorithm finished in an incosistent state\n");
-
-#ifdef DEBUG_OUTPUT
-	pthread_mutex_destroy(&print_m);
-#endif
+	if (!consistent) print_error("error: MGM algorithm finished in an incosistent state\n");
 }
 
 static void mgm_run(dcop_t *dcop) {

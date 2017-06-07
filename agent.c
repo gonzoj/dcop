@@ -12,6 +12,7 @@
 #include <lua.h>
 
 #include "agent.h"
+#include "console.h"
 #include "constraint.h"
 #include "dcop.h"
 #include "list.h"
@@ -215,7 +216,7 @@ double agent_evaluate(agent_t *a) {
 		lua_getfield(a->L, -1, "rate_view");
 		lua_pushvalue(a->L, -2);
 		if (lua_pcall(a->L, 1, 1, 0)) {
-			printf("error: failed to call function 'rate_view' for agent %i (%s)\n", a->id, lua_tostring(a->L, -1));
+			print_error("failed to call function 'rate_view' for agent %i (%s)\n", a->id, lua_tostring(a->L, -1));
 			lua_pop(a->L, 2);
 
 			r = INFINITY;
@@ -310,7 +311,7 @@ int agent_create_thread(agent_t *a, void * (*algorithm)(void *), void *arg) {
 		CPU_ZERO(&cpuset);
 		CPU_SET((a->id - 1) % dcop_get_number_of_cores(), &cpuset);
 		if (pthread_setaffinity_np(a->tid, sizeof(cpu_set_t), &cpuset)) {
-			printf("warning: failed to set core affinity for agent %i\n", a->id);
+			print_warning("failed to set core affinity for agent %i\n", a->id);
 		}
 	}
 
@@ -326,10 +327,10 @@ void * agent_cleanup_thread(agent_t *a) {
 }
 
 void agent_dump_view(agent_t *a) {
-	printf("[%i] agent_view[0]:\n", a->id);
+	print("[%i] agent_view[0]:\n", a->id);
 	view_dump(a->view);
 	for_each_entry(neighbor_t, n, &a->neighbors) {
-		printf("[%i] agent_view[%i]:\n", a->id, n->agent->id);
+		print("[%i] agent_view[%i]:\n", a->id, n->agent->id);
 		view_dump(a->agent_view[n->agent->id]);
 	}
 }
