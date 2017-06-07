@@ -119,5 +119,5 @@ problem:load()
 
 --agent1:rate_view()
 
-print("EXAMPLE.LUA LOADED")
+--print("EXAMPLE.LUA LOADED")
 

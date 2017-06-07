@@ -6,7 +6,6 @@
 
 #include <lua.h>
 
-#include "dcop.h"
 #include "list.h"
 #include "resource.h"
 #include "view.h"
@@ -30,16 +29,20 @@ void view_free(view_t *v) {
 	}
 }
 
-int view_load(dcop_t *dcop, view_t *v) {
+int view_load(lua_State *L, view_t *v) {
 	int n = 0;
-	int t = lua_gettop(dcop->L);
-	lua_pushnil(dcop->L);
-	while (lua_next(dcop->L, t)) {
+
+	int t = lua_gettop(L);
+	lua_pushnil(L);
+	while (lua_next(L, t)) {
 		resource_t *r = resource_new();
-		resource_load(dcop, r);
+		resource_load(L, r);
+
 		list_add_tail(&r->_l, &v->resources);
+
 		n++;
 	}	
+
 	return n;
 }
 
@@ -89,11 +92,10 @@ view_t * view_clone(view_t *v) {
 
 	for_each_entry(resource_t, r, &v->resources) {
 		resource_t *_r = resource_new();
-		_r->status = r->status;
-		_r->owner = r->owner;
-		_r->tile = r->tile;
+
+		memcpy(_r, r, sizeof(resource_t));
 		_r->type = strdup(r->type);
-		_r->ref = r->ref;
+
 		list_add_tail(&_r->_l, &_v->resources);
 	}
 	
@@ -131,6 +133,7 @@ char * view_to_string(view_t *v) {
 			strcat(string, blank);
 			free(blank);
 		}
+
 		free(resource);
 	}
 
@@ -165,6 +168,7 @@ char * view_to_string(view_t *v) {
 			strcat(string, blank);
 			free(blank);
 		}
+
 		free(owner);
 	}
 
@@ -188,7 +192,11 @@ bool view_compare(view_t *v, view_t *w) {
 	     &i->_l != &v->resources && &j->_l != &w->resources;
 	     i = list_entry(i->_l.prev, typeof(*i), _l),
 	     j = list_entry(j->_l.prev, typeof(*j), _l)) {
-		if (i->status != j->status || (i->status == RESOURCE_STATUS_TAKEN && i->owner != j->owner)) {
+		if (i->status == RESOURCE_STATUS_UNKNOWN || j->status == RESOURCE_STATUS_UNKNOWN) {
+			continue;
+		} else if (i->status != j->status) {
+			return false;
+		} else if (i->status == RESOURCE_STATUS_TAKEN && i->owner != j->owner) {
 			return false;
 		}
 	}

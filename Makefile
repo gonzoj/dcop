@@ -8,9 +8,11 @@ CC=$(SNIPER_CC)
 
 CFLAGS += $(SNIPER_CFLAGS) -Wall -g
 
+LD=$(SNIPER_LD)
+
 LDFLAGS += $(SNIPER_LDFLAGS)
 
-LIBS = -lpthread -llua -ldl -lm
+LIBS = -lm -llua -ldl -lpthread
 
 CSRC := $(wildcard *.c)
 
@@ -23,7 +25,7 @@ all: build
 
 .PHONY: build
 build: $(OBJ)
-	$(CC) $(CFLAGS) -o $(EXE) $(OBJ) $(LIBS) $(LDFLAGS)
+	$(LD) $(CFLAGS) -o $(EXE) $(OBJ) $(LIBS) $(LDFLAGS)
 	@echo
 	@echo "*** BUILD COMPLETE ***"
 

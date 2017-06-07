@@ -4,6 +4,7 @@
 #include <lauxlib.h>
 #include <lua.h>
 
+#include "agent.h"
 #include "constraint.h"
 #include "list.h"
 
@@ -19,7 +20,9 @@ constraint_t * constraint_new() {
 
 void constraint_free(constraint_t *c) {
 	if (c) {
-		if (c->name) free(c->name);
+		if (c->name) {
+			free(c->name);
+		}
 
 		for_each_entry_safe(constraint_arg_t, arg, _arg, &c->args) {
 			list_del(&arg->_l);
@@ -58,7 +61,8 @@ void register_native_constraint(constraint_t *c) {
 }
 
 void free_native_constraints() {
-	for_each_entry(constraint_t, c, &native_constraints) {
+	for_each_entry_safe(constraint_t, c, _c, &native_constraints) {
+		list_del(&c->_l);
 		constraint_free(c);
 	}
 }
@@ -87,6 +91,7 @@ static object_type_t check_object_type_lua(lua_State *L) {
 	if (!luaL_getmetafield(L, -1, "__object_type")) {
 		return OBJECT_TYPE_UNKNOWN;
 	}
+
 	const char *type = lua_tostring(L, -1);
 	if (!strcmp(type, "resource")) {
 		result = OBJECT_TYPE_RESOURCE;
@@ -107,9 +112,9 @@ static object_type_t check_object_type_lua(lua_State *L) {
 	return result;
 }
 
-void constraint_load(dcop_t *dcop, constraint_t *c) {
-	lua_getfield(dcop->L, -1, "name");
-	c->name = strdup(lua_tostring(dcop->L, -1));
+void constraint_load(agent_t *agent, constraint_t *c) {
+	lua_getfield(agent->L, -1, "name");
+	c->name = strdup(lua_tostring(agent->L, -1));
 
 	c->type = CONSTRAINT_TYPE_LUA;
 	for_each_entry(constraint_t, _c, &native_constraints) {
@@ -120,46 +125,46 @@ void constraint_load(dcop_t *dcop, constraint_t *c) {
 	}
 	if (c->type == CONSTRAINT_TYPE_LUA) c->eval = constraint_evaluate_lua;
 
-	lua_getfield(dcop->L, -2, "param");
-	lua_getfield(dcop->L, -1, "args");
-	if (lua_type(dcop->L, -1) == LUA_TTABLE && check_object_type_lua(dcop->L) == OBJECT_TYPE_UNKNOWN) {
-		int t = lua_gettop(dcop->L);
-		lua_pushnil(dcop->L);
-		while (lua_next(dcop->L, t)) {
-			constraint_arg_t *arg = constraint_arg_new(check_object_type_lua(dcop->L));
+	lua_getfield(agent->L, -2, "param");
+	lua_getfield(agent->L, -1, "args");
+	if (lua_type(agent->L, -1) == LUA_TTABLE && check_object_type_lua(agent->L) == OBJECT_TYPE_UNKNOWN) {
+		int t = lua_gettop(agent->L);
+		lua_pushnil(agent->L);
+		while (lua_next(agent->L, t)) {
+			constraint_arg_t *arg = constraint_arg_new(check_object_type_lua(agent->L));
 
 			switch (arg->type) {
 				case OBJECT_TYPE_AGENT:
-					lua_getfield(dcop->L, -1, "id");
-					int id = lua_tonumber(dcop->L, -1);
-					arg->agent = dcop_get_agent(dcop, id);
-					lua_pop(dcop->L, 2);
+					lua_getfield(agent->L, -1, "id");
+					int id = lua_tonumber(agent->L, -1);
+					arg->agent = dcop_get_agent(agent->dcop, id);
+					lua_pop(agent->L, 2);
 					break;
 
 				case OBJECT_TYPE_CONSTRAINT:
 					arg->constraint = constraint_new();
-					constraint_load(dcop, arg->constraint);
+					constraint_load(agent, arg->constraint);
 					break;
 
 				case OBJECT_TYPE_DCOP:
-					arg->dcop = dcop;
-					lua_pop(dcop->L, 1);
+					arg->dcop = agent->dcop;
+					lua_pop(agent->L, 1);
 					break;
 
 				case OBJECT_TYPE_HARDWARE:
-					arg->hardware = dcop->hardware;
-					lua_pop(dcop->L, 1);
+					arg->hardware = agent->dcop->hardware;
+					lua_pop(agent->L, 1);
 					break;
 
 				case OBJECT_TYPE_RESOURCE:
 					// should probably use the correct ref and not reload?
 					arg->resource = resource_new();
-					resource_load(dcop, arg->resource);
+					resource_load(agent->L, arg->resource);
 					break;
 
 				default:
 					printf("warning: object type of argument for constraint '%s' unknown\n", c->name);
-					arg->ref = luaL_ref(dcop->L, LUA_GLOBALSINDEX);
+					arg->ref = luaL_ref(agent->L, LUA_GLOBALSINDEX);
 					break;
 			}
 
@@ -169,12 +174,12 @@ void constraint_load(dcop_t *dcop, constraint_t *c) {
 		printf("error: constraint arguments must be within a table\n");
 	}
 
-	lua_pop(dcop->L, 3);
+	lua_pop(agent->L, 3);
 
-	c->L = dcop->L;
-	lua_getglobal(dcop->L, "__constraints");
-	lua_pushvalue(dcop->L, -2);
-	c->ref = luaL_ref(dcop->L, -2);
-	lua_pop(dcop->L, 2);
+	c->L = agent->L;
+	lua_getglobal(agent->L, "__constraints");
+	lua_pushvalue(agent->L, -2);
+	c->ref = luaL_ref(agent->L, -2);
+	lua_pop(agent->L, 2);
 }
 

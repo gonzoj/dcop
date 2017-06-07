@@ -13,9 +13,8 @@
 
 typedef struct agent {
 	struct list_head _l;
-	//dcop_t *dcop;
-	//lua_State *L;
-	int ref;
+	dcop_t *dcop;
+	lua_State *L;
 	int id;
 	pthread_t tid;
 	pthread_mutex_t mt;
@@ -52,19 +51,21 @@ neighbor_t * neighbor_new(agent_t *a);
 
 message_t * message_new(void *buf, void (*free)(void *));
 
-#define message_free(msg) msg->free(msg->buf); free(msg)
+#define message_free(msg) do { msg->free(msg->buf); free(msg); } while (0)
 
 void agent_load(dcop_t *dcop, agent_t *a);
 
-void agent_load_neighbors(dcop_t *dcop, agent_t *a);
+void agent_load_view(agent_t *a);
 
-void agent_load_constraints(dcop_t *dcop, agent_t *a);
+void agent_load_neighbors(agent_t *a);
 
-void agent_update_view(agent_t *agent, view_t *new);
+void agent_load_agent_view(agent_t *a);
 
-void agent_clear_view(agent_t *agent);
+void agent_load_constraints(agent_t *a);
 
-double agent_evaluate(dcop_t *dcop, agent_t *a);
+void agent_clear_agent_view(agent_t *a);
+
+double agent_evaluate(agent_t *a);
 
 void agent_send(agent_t *s, agent_t *r, message_t *msg);
 
@@ -72,7 +73,7 @@ message_t * agent_recv(agent_t *r);
 
 message_t * agent_recv_filter(agent_t *r, bool (*filter)(message_t *, void *), void *arg);
 
-void agent_refresh(dcop_t *dcop, agent_t *a);
+void agent_refresh(agent_t *a);
 
 int agent_create_thread(agent_t *a, void * (*algorithm)(void *), void *arg);
 
@@ -81,6 +82,8 @@ void * agent_cleanup_thread(agent_t *a);
 #define agent_is_owner(a, r) (r->status == RESOURCE_STATUS_TAKEN && r->owner == a->id)
 
 void agent_dump_view(agent_t *a);
+
+#define agent_has_neighbors(a) (a->number_of_neighbors > 0)
 
 #endif /* AGENT_H_ */
 

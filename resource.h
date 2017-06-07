@@ -3,8 +3,8 @@
 
 #include <stdlib.h>
 
-#include "agent.h"
-#include "dcop.h"
+#include <lua.h>
+
 #include "list.h"
 
 typedef struct resource {
@@ -24,9 +24,9 @@ typedef struct resource {
 
 void resource_free(resource_t *r);
 
-void resource_load(dcop_t *dcop, resource_t *r);
+void resource_load(lua_State *L, resource_t *r);
 
-void resource_refresh(dcop_t *dcop, resource_t *r);
+void resource_refresh(lua_State *L, resource_t *r);
 
 #endif /* RESOURCE_H_ */
 

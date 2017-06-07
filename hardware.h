@@ -1,8 +1,10 @@
 #ifndef HARDWARE_H_
 #define HARDWARE_H_
 
-#include "dcop.h"
-#include "list.h"
+#include <stdlib.h>
+
+#include <lua.h>
+
 #include "view.h"
 
 typedef struct hardware {
@@ -15,7 +17,7 @@ typedef struct hardware {
 
 void hardware_free(hardware_t *hw);
 
-void hardware_load(dcop_t *dcop, hardware_t *hw);
+void hardware_load(lua_State *L, hardware_t *hw);
 
 #endif /* HARDWARE_H_ */
 

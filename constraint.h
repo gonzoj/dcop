@@ -15,8 +15,7 @@ typedef struct constraint {
 		CONSTRAINT_TYPE_NATIVE,
 		CONSTRAINT_TYPE_LUA
 	} type;
-	char *name;
-	struct list_head args;
+	char *name; struct list_head args;
 	lua_State *L;
 	int ref;
 	double (*eval)(struct constraint *);
@@ -56,7 +55,7 @@ void register_native_constraint(constraint_t *c);
 
 void free_native_constraints();
 
-void constraint_load(dcop_t *dcop, constraint_t *c);
+void constraint_load(agent_t *agent, constraint_t *c);
 
 #endif /* CONSTRAINT_H_ */
 

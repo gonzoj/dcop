@@ -2,9 +2,9 @@
 #define VIEW_H_
 
 #include <stdbool.h>
-#include <pthread.h>
 
-#include "dcop.h"
+#include <lua.h>
+
 #include "list.h"
 
 typedef struct view {
@@ -15,7 +15,7 @@ view_t * view_new();
 
 void view_free(view_t *v);
 
-int view_load(dcop_t *dcop, view_t *v);
+int view_load(lua_State *L, view_t *v);
 
 void view_copy(view_t *v, view_t *w);
 
