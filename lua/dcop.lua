@@ -4,18 +4,18 @@ local table = require("table")
 
 module("dcop")
 
-local function typeof(o)
+function typeof(o)
 	return base.type(o) == "table" and base.getmetatable(o) and base.getmetatable(o).__object_type or nil
 end
 
-local function check_object_type(o, t)
+function check_object_type(o, t)
 	base.assert(typeof(o) == t, "'" .. base.tostring(o) .. "' is not of type '" .. t .. "'")
 end
 
 local function contains(t, s, f, i)
 	base.assert(base.type(t) == "table")
-	base.assert(base.type(f) == "function" or f == nil)
-	base.assert(base.type(i) == "function" or i == nil)
+	base.assert(not f or base.type(f) == "function")
+	base.assert(not i or base.type(i) == "function")
 
 	f = f or function(x, y) return x == y end
 	i = i or base.ipairs
@@ -57,7 +57,7 @@ end
 
 hardware = {}
 
-hardware.new = function()
+hardware.new = function(t, n)
 	local hw = {}
 	
 	local mt = {}
@@ -124,6 +124,13 @@ hardware.new = function()
 		end
 	end
 
+	if t then
+		base.assert(base.type(t) == "table", "argument 't' must be a table")
+
+		for _, tile in base.ipairs(t) do
+			hw:add_tile(tile, n or 1)
+		end
+	end
 
 	return hw
 end
@@ -189,7 +196,7 @@ constraint = {}
 constraint.new = function(n, f, a)
 	base.assert(base.type(n) == "string", "constraint.name must be a string")
 	base.assert(base.type(f) == "function", "constraint.eval must be a function")
-	base.assert(base.type(a) == "table", "constraint.args must be a table")
+	base.assert(not a or base.type(a) == "table", "constraint.args must be a table")
 
 	local c = {}
 
@@ -207,18 +214,20 @@ constraint.new = function(n, f, a)
 	c.param.neighbors = {}
 	c.param.args = {} 
 
-	for _, arg in base.ipairs(a) do
-		if typeof(arg) == "agent" then
-			table.insert(c.param.neighbors, arg)
-		else
-			table.insert(c.param.args, arg)
+	if a then
+		for _, arg in base.ipairs(a) do
+			if typeof(arg) == "agent" then
+				table.insert(c.param.neighbors, arg)
+			else
+				table.insert(c.param.args, arg)
+			end
 		end
 	end
 
 	return c
 end
 
-function new(hw)
+function new(hw, n)
 	check_object_type(hw, "hardware")
 
 	local p = {}
@@ -311,6 +320,10 @@ function new(hw)
 		else
 			base.print("error: __dcop_load undefined")
 		end
+	end
+
+	if n then
+		return p, p:create_agents(n)
 	end
 
 	return p

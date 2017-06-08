@@ -1,3 +1,4 @@
+#include <getopt.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -45,7 +46,7 @@ typedef enum {
 	MGM_WAIT_IMPROVE_MODE
 } mgm_mode_t;
 
-static int max_distance = 20;
+static int max_distance = 200;
 
 static bool consistent = true;
 
@@ -127,7 +128,7 @@ static void permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 	if (pos == a->agent->dcop->hardware->number_of_resources) {
 		double improve = get_improvement(a);
 		if (improve > a->improve) {
-			char *s = view_to_string(a->agent->view);
+			char *s = view_to_string(a->new_view);
 			DEBUG_MESSAGE(a, "considering new view with improvement %f:\n%s", improve, s);
 			free(s);
 
@@ -241,7 +242,7 @@ static void * mgm(void *arg) {
 
 				view_copy(a->agent->agent_view[msg->from->id], mgm_message(msg)->view);
 
-				if (counter == a->agent->number_of_neighbors || !agent_has_neighbors(a->agent)) {
+				if (counter == a->agent->number_of_neighbors) {
 					if (!a->can_move) {
 						for_each_entry(neighbor_t, n, &a->agent->neighbors) {
 							if (!view_compare(a->agent->view, a->agent->agent_view[n->agent->id])) {
@@ -278,7 +279,7 @@ static void * mgm(void *arg) {
 					a->consistent = false;
 				}
 
-				if (counter == a->agent->number_of_neighbors || !agent_has_neighbors(a->agent)) {
+				if (counter == a->agent->number_of_neighbors) {
 					if (send_ok(a)) {
 						stop = true;
 						break;
@@ -297,7 +298,14 @@ static void * mgm(void *arg) {
 				break;
 
 			case MGM_START:
-				if (send_ok(a)) {
+				if (!agent_has_neighbors(a->agent)) {
+					// algorithm not really suited for that case, not sure what to do here...
+					improve(a);
+					if (a->improve > 0) {
+						view_copy(a->agent->view, a->new_view);
+					}
+					stop = true;
+				} else if (send_ok(a)) {
 					stop = true;
 				}
 				break;
@@ -311,7 +319,48 @@ static void * mgm(void *arg) {
 	return (void *) a;
 }
 
+static int parse_arguments(int argc, char **argv) {
+	struct option long_options[] = {
+		{ "distance", required_argument, NULL, 'd' },
+		{ 0 }
+	};
+
+	optind = 1;
+
+	while (true) {
+		int result = getopt_long(argc, argv, "d:", long_options, NULL);
+		if (result == -1) {
+			break;
+		}
+
+		int distance;
+
+		switch (result) {
+			case 'd':
+				distance = (int) strtol(optarg, NULL, 10);
+				if (distance <= 0) {
+					print_error("mgm: invalid distance given\n");
+					print("mgm: using default distance %i\n", max_distance);
+				} else {
+					max_distance = distance;
+					print("mgm: distance set to %i\n", max_distance);
+				}
+				break;
+
+			case '?':
+			case ':':
+			default:
+				print_error("mgm: failed to parse algorithm paramters\n");
+				return -1;
+		}
+	}
+
+	return 0;
+}
+
 static void mgm_init(dcop_t *dcop, int argc, char **argv) {
+	parse_arguments(argc, argv);
+
 	for_each_entry(agent_t, a, &dcop->agents) {
 		mgm_agent_t *_a = (mgm_agent_t *) calloc(1, sizeof(mgm_agent_t));
 
@@ -322,6 +371,7 @@ static void mgm_init(dcop_t *dcop, int argc, char **argv) {
 
 		agent_create_thread(a, mgm, _a);
 	}
+	DEBUG print("\n");
 
 	consistent = true;
 }
@@ -343,6 +393,7 @@ static void mgm_cleanup(dcop_t *dcop) {
 
 		free(_a);
 	}
+	DEBUG print("\n");
 
 	if (!consistent) print_error("error: MGM algorithm finished in an incosistent state\n");
 }

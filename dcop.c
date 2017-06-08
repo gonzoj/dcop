@@ -25,8 +25,10 @@ static LIST_HEAD(algorithms);
 
 static char *algorithm = NULL;
 static char *spec = NULL;
-static int algorithm_argc = 0;
+static int algorithm_argc = 1;
 static char **algorithm_argv = NULL;
+static int spec_argc = 0;
+static char **spec_argv = NULL;
 
 void dcop_register_algorithm(algorithm_t *a) {
 	list_add_tail(&a->_l, &algorithms);
@@ -180,7 +182,7 @@ static int __dcop_load_agent(lua_State *L) {
 	return 0;
 }
 
-static lua_State * dcop_create_lua_state(void *object, const char *file, int (*load)(lua_State *)) {
+static lua_State * dcop_create_lua_state(void *object, const char *file, int (*load)(lua_State *), int argc, char **argv) {
 	lua_State *L = luaL_newstate();
 	if (!L) {
 		return NULL;
@@ -194,6 +196,14 @@ static lua_State * dcop_create_lua_state(void *object, const char *file, int (*l
 	lua_setglobal(L, "__resources");
 
 	lua_register(L, "__dcop_load", load);
+
+	lua_newtable(L);
+	for (int i = 0; i < argc; i++) {
+		lua_pushnumber(L, i + 1);
+		lua_pushstring(L, argv[i]);
+		lua_settable(L, -3);
+	}
+	lua_setglobal(L, "arg");
 
 	lua_getglobal(L, "package");
 	lua_getfield(L, -1, "path");
@@ -219,12 +229,12 @@ static lua_State * dcop_create_lua_state(void *object, const char *file, int (*l
 	return L;
 }
 
-static struct dcop * dcop_load(const char *file) {
+static struct dcop * dcop_load(const char *file, int argc, char **argv) {
 	dcop_t *dcop = (dcop_t *) calloc(1, sizeof(dcop_t));
 
 	INIT_LIST_HEAD(&dcop->agents);
 
-	if (!dcop_create_lua_state(dcop, file, __dcop_load)) {
+	if (!dcop_create_lua_state(dcop, file, __dcop_load, argc, argv)) {
 		dcop->L = NULL;
 		dcop_free(dcop);
 
@@ -232,7 +242,7 @@ static struct dcop * dcop_load(const char *file) {
 	}
 
 	for_each_entry(agent_t, a, &dcop->agents) {
-		if (!dcop_create_lua_state(a, file, __dcop_load_agent)) {
+		if (!dcop_create_lua_state(a, file, __dcop_load_agent, argc, argv)) {
 			a->L = NULL;
 
 			dcop_free(dcop);
@@ -270,6 +280,9 @@ static void usage() {
 	printf("	--param PARAMTER, -p PARAMETER\n");
 	printf("		pass PARAMTER to algorithm\n");
 	printf("\n");
+	printf("	--option OPTION, -o OPTION\n");
+	printf("		pass OPTION to SPECIFICATION\n");
+	printf("\n");
 }
 
 static int parse_arguments(int argc, char **argv) {
@@ -279,12 +292,12 @@ static int parse_arguments(int argc, char **argv) {
 		{ "logfile", required_argument, NULL, 'l' },
 		{ "debug", no_argument, NULL, 'd' },
 		{ "param", required_argument, NULL, 'p' },
+		{ "option", required_argument, NULL, 'o' },
 		{ 0 }
 	};
 
 	while (true) {
-		int index = -1;
-		int result = getopt_long(argc, argv, "ha:l:dp:", long_options, &index);
+		int result = getopt_long(argc, argv, "ha:l:dp:o:", long_options, NULL);
 		if (result == -1) {
 			break;
 		}
@@ -310,6 +323,12 @@ static int parse_arguments(int argc, char **argv) {
 				algorithm_argv = realloc(algorithm_argv, ++algorithm_argc * sizeof(char *));
 				algorithm_argv[algorithm_argc - 1] = strdup(optarg);
 				break;
+
+			case 'o':
+				spec_argv = realloc(spec_argv, ++spec_argc * sizeof(char *));
+				spec_argv[spec_argc - 1] = strdup(optarg);
+				break;
+
 
 			case '?':
 			case ':':
@@ -341,6 +360,12 @@ error:
 		}
 		free(algorithm_argv);
 	}
+	if (spec_argv) {
+		for (int i = 0; i < spec_argc; i++) {
+			free(spec_argv[i]);
+		}
+		free(spec_argv);
+	}
 
 	return -1;
 }
@@ -351,10 +376,16 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
+	int status = EXIT_SUCCESS;
+
 	if (!algorithm) {
 		algorithm = strdup("mgm");
 	}
 
+	if (!algorithm_argv) {
+		algorithm_argv = malloc(sizeof(char *));
+	}
+	algorithm_argv[0] = strdup(algorithm);
 	console_init();
 
 	dcop_init_algorithms();
@@ -362,22 +393,11 @@ int main(int argc, char **argv) {
 	print("number of cores available: %i\n", dcop_get_number_of_cores());
 
 	print("loading dcop specification from '%s'\n", spec);
-	dcop_t *dcop = dcop_load(spec);
+	dcop_t *dcop = dcop_load(spec, spec_argc, spec_argv);
 	if (!dcop) {
 		print_error("failed to load dcop specification\n");
-
-		console_cleanup();
-
-		free(algorithm);
-		free(spec);
-		if (algorithm_argv) {
-			for (int i = 0; i < algorithm_argc; i++) {
-				free(algorithm_argv[i]);
-			}
-			free(algorithm_argv);
-		}
-
-		exit(EXIT_FAILURE);
+		status = EXIT_FAILURE;
+		goto cleanup;
 	}
 	print("completed loading '%s'\n", spec);
 
@@ -390,7 +410,13 @@ int main(int argc, char **argv) {
 	print("\n");
 
 	algorithm_t *algo = dcop_get_algorithm(algorithm);
-	print("initialize algorithm '%s'\n", algo->name);
+	if (!algo) {
+		print_error("unknown algorithm '%s'\n", algorithm);
+		status = EXIT_FAILURE;
+		goto cleanup;
+	}
+
+	print("initialize algorithm '%s'\n\n", algo->name);
 	algo->init(dcop, algorithm_argc, algorithm_argv);
 
 	SimRoiStart();
@@ -401,33 +427,39 @@ int main(int argc, char **argv) {
 	SimRoiEnd();
 
 	algo->cleanup(dcop);
-	print("\nalgorithm '%s' finished\n", algo->name);
+	print("algorithm '%s' finished\n", algo->name);
 
 	print("\nprevious resource assignment:\n");
 	view_dump(dcop->hardware->view);
+	print("\n");
 
 	dcop_refresh(dcop);
 
 	dcop_merge_view(dcop);
 
-	print("\nfinal resource assignment:\n");
+	print("final resource assignment:\n");
 	view_dump(dcop->hardware->view);
 
 	dcop_free(dcop);
 
 	free_native_constraints();
 
+cleanup:
 	console_cleanup();
 
 	free(algorithm);
 	free(spec);
-	if (algorithm_argv) {
-		for (int i = 0; i < algorithm_argc; i++) {
-			free(algorithm_argv[i]);
+	for (int i = 0; i < algorithm_argc; i++) {
+		free(algorithm_argv[i]);
+	}
+	free(algorithm_argv);
+	if (spec_argv) {
+		for (int i = 0; i < spec_argc; i++) {
+			free(spec_argv[i]);
 		}
-		free(algorithm_argv);
+		free(spec_argv);
 	}
 
-	exit(EXIT_SUCCESS);
+	exit(status);
 }
 
