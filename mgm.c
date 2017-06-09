@@ -46,6 +46,8 @@ typedef enum {
 	MGM_WAIT_IMPROVE_MODE
 } mgm_mode_t;
 
+static algorithm_t _mgm;
+
 static int max_distance = 200;
 
 static bool consistent = true;
@@ -410,9 +412,8 @@ static void mgm_kill(dcop_t *dcop) {
 	}
 }
 
-static algorithm_t _mgm = algorithm_new("mgm", mgm_init, mgm_cleanup, mgm_run, mgm_kill);
-
 void mgm_register() {
+	_mgm = algorithm_new("mgm", mgm_init, mgm_cleanup, mgm_run, mgm_kill);
 	dcop_register_algorithm(&_mgm);
 }
 

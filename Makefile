@@ -6,7 +6,7 @@ include ../sniper/sniper-6.1/config/buildconf.makefile
 
 CC=$(SNIPER_CC)
 
-CFLAGS += $(SNIPER_CFLAGS) -Wall -g
+CFLAGS += $(SNIPER_CFLAGS) -Wall -g -std=gnu11
 
 LD=$(SNIPER_LD)
 
@@ -38,11 +38,12 @@ clean:
 
 .PHONY: run-script
 run-script:
+	cp run-dcop.template run-dcop
 	sed -i -e 's/^SNIPER_ROOT=".*"$$/SNIPER_ROOT="$(subst /,\/,$(SNIPER_ROOT))"/' run-dcop
 	sed -i -e 's/^DCOP_ROOT=".*"$$/DCOP_ROOT="$(subst /,\/,$(ROOT_DIR))"/' run-dcop
 
 .PHONY: distclean
 distclean: clean
-	sed -i -e 's/^SNIPER_ROOT=".*"$$/SNIPER_ROOT=""/' run-dcop
-	sed -i -e 's/^DCOP_ROOT=".*"$$/DCOP_ROOT=""/' run-dcop
+	rm -f dcop
+	rm -f run-dcop
 
