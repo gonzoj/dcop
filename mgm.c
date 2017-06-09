@@ -321,6 +321,14 @@ static void * mgm(void *arg) {
 	return (void *) a;
 }
 
+static void mgm_usage() {
+	printf("\n");
+	printf("OPTIONS:\n");
+	printf("	--distance MAX, -d MAX\n");
+	printf("		maximum distance used by agents\n");
+	printf("\n");
+}
+
 static int parse_arguments(int argc, char **argv) {
 	struct option long_options[] = {
 		{ "distance", required_argument, NULL, 'd' },
@@ -413,7 +421,7 @@ static void mgm_kill(dcop_t *dcop) {
 }
 
 void mgm_register() {
-	_mgm = algorithm_new("mgm", mgm_init, mgm_cleanup, mgm_run, mgm_kill);
+	_mgm = algorithm_new("mgm", mgm_init, mgm_cleanup, mgm_run, mgm_kill, mgm_usage);
 	dcop_register_algorithm(&_mgm);
 }
 

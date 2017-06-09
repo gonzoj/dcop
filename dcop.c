@@ -265,7 +265,7 @@ static void usage() {
 	printf("dcop [OPTIONS] SPECIFICATION\n");
 	printf("\n");
 	printf("OPTIONS:\n");
-	printf("	--help\n");
+	printf("	--help, -h\n");
 	printf("		print usage description and exit\n");
 	printf("\n");
 	printf("	--algorithm NAME, -a NAME\n");
@@ -282,6 +282,14 @@ static void usage() {
 	printf("\n");
 	printf("	--option OPTION, -o OPTION\n");
 	printf("		pass OPTION to SPECIFICATION\n");
+	printf("\n");
+
+	printf("algorithms:\n");
+	printf("\n");
+	for_each_entry(algorithm_t, a, &algorithms) {
+		printf("* %s:\n", a->name);
+		a->usage();
+	}
 	printf("\n");
 }
 
@@ -371,6 +379,8 @@ error:
 }
 
 int main(int argc, char **argv) {
+	dcop_init_algorithms();
+
 	if (parse_arguments(argc, argv)) {
 		usage();
 		exit(EXIT_FAILURE);
@@ -387,8 +397,6 @@ int main(int argc, char **argv) {
 	}
 	algorithm_argv[0] = strdup(algorithm);
 	console_init();
-
-	dcop_init_algorithms();
 
 	print("number of cores available: %i\n", dcop_get_number_of_cores());
 

@@ -11,9 +11,10 @@ typedef struct algorithm {
 	void (*cleanup)(dcop_t *dcop);
 	void (*run)(dcop_t *dcop);
 	void (*kill)(dcop_t *dcop);
+	void (*usage)();
 } algorithm_t;
 
-#define algorithm_new(n, i, c, r, k) (algorithm_t) { .name = n, .init = i, .cleanup = c, .run = r, .kill = k }
+#define algorithm_new(n, i, c, r, k, u) (algorithm_t) { .name = n, .init = i, .cleanup = c, .run = r, .kill = k, .usage = u }
 
 #endif /* ALGORITHM_H_ */
 
