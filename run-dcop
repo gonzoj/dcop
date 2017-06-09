@@ -1,0 +1,89 @@
+#!/bin/sh
+
+SNIPER_ROOT=""
+DCOP_ROOT=""
+
+cores="-n 6"
+simdir="-d /var/tmp/snipersim"
+
+OPTIND=1
+
+function show_usage {
+	echo ""
+	echo "usage:"
+	echo ""
+	echo "run-dcop [OPTIONS] [[--] ARGUMENTS]"
+	echo ""
+	echo "OPTIONS:"
+	echo "	-h"
+	echo "		show this message and exit"
+	echo ""
+	echo "	-n CORES"
+	echo "		run sniper simulation with number of CORES (default: 6)"
+	echo ""
+	echo "	-s DIR"
+	echo "		dump sniper output into DIR (default: /var/tmp/snipersim)"
+	echo ""
+	echo "	-d"
+	echo "		enable sniper appdebug feature"
+	echo ""
+	echo "	-a"
+	echo "		run dcop as a standalone application"
+	echo ""
+	echo "	-v"
+	echo "		run dcop in valgrind"
+	echo ""
+	echo "	-g"
+	echo "		run dcop in gdb"
+	echo ""
+	echo "ARGUMENTS:"
+	echo "	arguments passed to dcop (see dcop --help for more information)"
+	echo ""
+}
+
+if [[ "$#" -eq 0 ]]; then
+	show_usage
+	exit 0
+fi
+
+while getopts "n:s:davgh" opt; do
+	case "$opt" in
+		h)
+			show_usage
+			exit 0
+			;;
+		n)
+			cores="-n $OPTARG"
+			;;
+		s)
+			simdir="-d $OPTARG"
+			;;
+		d)
+			debug="--appdebug"
+			;;
+		a)
+			mode="standalone"
+			;;
+		v)
+			mode="valgrind"
+			;;
+		g)
+			mode="gdb"
+			;;
+	esac
+done
+
+shift $((OPTIND-1))
+
+[ "$1" = "--" ] && shift
+
+if [[ "$mode" = "standalone" ]]; then
+	time $DCOP_ROOT/dcop $*
+elif [[ "$mode" = "valgrind" ]]; then
+	valgrind --leak-check=full --show-reachable=yes $DCOP_ROOT/dcop $*
+elif [[ "$mode" = "gdb" ]]; then
+	gdb -ex "set args $*" -ex "run" $DCOP_ROOT/dcop
+else
+	$SNIPER_ROOT/run-sniper $cores $simdir --roi $debug -- $DCOP_ROOT/dcop $*
+fi
+

@@ -122,6 +122,7 @@ void constraint_load(agent_t *agent, constraint_t *c) {
 		if (!strcmp(c->name, _c->name)) {
 			c->type = CONSTRAINT_TYPE_NATIVE;
 			c->eval = _c->eval;
+			print_warning("native constraints are currently unsupported (param.agent and param.neighbors not implemented)\n");
 		}
 	}
 	if (c->type == CONSTRAINT_TYPE_LUA) c->eval = constraint_evaluate_lua;
@@ -165,6 +166,7 @@ void constraint_load(agent_t *agent, constraint_t *c) {
 
 				default:
 					print_warning("object type of argument for constraint '%s' unknown\n", c->name);
+					// this does not actually work, can't use a pseudoindex for luaL_ref
 					arg->ref = luaL_ref(agent->L, LUA_GLOBALSINDEX);
 					break;
 			}

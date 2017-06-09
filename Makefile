@@ -21,7 +21,7 @@ OBJ = $(CSRC:%.c=%.o)
 EXE = dcop
 
 .PHONY: all
-all: build
+all: run-script build
 
 .PHONY: build
 build: $(OBJ)
@@ -35,4 +35,14 @@ build: $(OBJ)
 .PHONY: clean
 clean:
 	rm -f $(OBJ)
+
+.PHONY: run-script
+run-script:
+	sed -i -e 's/^SNIPER_ROOT=".*"$$/SNIPER_ROOT="$(subst /,\/,$(SNIPER_ROOT))"/' run-dcop
+	sed -i -e 's/^DCOP_ROOT=".*"$$/DCOP_ROOT="$(subst /,\/,$(ROOT_DIR))"/' run-dcop
+
+.PHONY: distclean
+distclean: clean
+	sed -i -e 's/^SNIPER_ROOT=".*"$$/SNIPER_ROOT=""/' run-dcop
+	sed -i -e 's/^DCOP_ROOT=".*"$$/DCOP_ROOT=""/' run-dcop
 
