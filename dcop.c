@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <lauxlib.h>
@@ -22,6 +23,8 @@
 #include <sim_api.h>
 
 static LIST_HEAD(algorithms);
+
+static time_t r_seed;
 
 static char *algorithm = NULL;
 static char *spec = NULL;
@@ -188,6 +191,9 @@ static lua_State * dcop_create_lua_state(void *object, const char *file, int (*l
 		return NULL;
 	}
 	luaL_openlibs(L);
+
+	lua_pushnumber(L, r_seed);
+	lua_setglobal(L, "__dcop_seed");
 
 	lua_pushlightuserdata(L, object);
 	lua_setglobal(L, "__this");
@@ -399,6 +405,9 @@ int main(int argc, char **argv) {
 	console_init();
 
 	print("number of cores available: %i\n", dcop_get_number_of_cores());
+
+	print("creating seed...\n");
+	r_seed = time(NULL);
 
 	print("loading dcop specification from '%s'\n", spec);
 	dcop_t *dcop = dcop_load(spec, spec_argc, spec_argv);

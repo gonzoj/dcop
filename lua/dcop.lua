@@ -52,6 +52,31 @@ resource.new = function(t, tile)
 	r.tile = tile
 	r.owner = -1
 
+	r.is_free = function(this)
+		check_object_type(this, "resource")
+
+		return this.status == resource.status.FREE
+	end
+
+	r.is_taken = function(this)
+		check_object_type(this, "resource")
+
+		return this.status == resource.status.TAKEN
+	end
+
+	r.is_unknown = function(this)
+		check_object_type(this, "resource")
+
+		return this.status == resource.status.UNKNOWN
+	end
+
+	r.is_owner = function(this, id)
+		check_object_type(this, "resource")
+		base.assert(base.type(id) == "number", "argument 'id' must e a number")
+
+		return this:is_taken() and this.owner == id
+	end
+
 	return r
 end
 
@@ -66,12 +91,13 @@ hardware.new = function(t, n)
 	mt.__object_type = "hardware"
 
 	hw.resources = {}
+	hw.number_of_resources = 0
 	hw.number_of_tiles = 0
 
 	hw.add_tile = function(this, t, n)
 		check_object_type(this, "hardware")
 		base.assert(base.type(t) == "table", "argument 't' must be a table")
-		base.assert(base.type(i) == "number" and i >= 0 or i == nil)
+		base.assert(base.type(n) == "number" and n >= 0 or n == nil, "argument 'n' must be a number")
 		
 		n = n or 1
 
@@ -81,6 +107,8 @@ hardware.new = function(t, n)
 			for _, r in base.ipairs(t) do
 				local resource = resource.new(base.tostring(r), this.number_of_tiles)
 				table.insert(this.resources, resource)
+
+				this.number_of_resources = this.number_of_resources + 1
 			end
 		end
 	end
@@ -115,7 +143,7 @@ hardware.new = function(t, n)
 			return tile[r], i + r - 1
 		else
 			for j, res in base.ipairs(tile) do
-				if res.type == r and res.status == resource.status.FREE then
+				if res.type == r and res:is_free() then
 					return tile[j], i + j - 1
 				end
 			end
@@ -178,7 +206,7 @@ agent.new = function()
 		base.assert(base.type(r) == "number" or base.type(r) == "string", "resource argument must be a number or string")
 
 		local res, i = dcop.hardware:get_resource(t, r)
-		if res.status == resource.status.TAKEN then
+		if res:is_taken() then
 			dcop.agents[res.owner].view[i].owner = this.id
 		end
 		this.view[i] = resource.new(res.type, res.tile)
@@ -186,6 +214,42 @@ agent.new = function()
 		this.view[i].owner = this.id	
 		res.status = resource.status.TAKEN
 		res.owner = this.id
+	end
+
+	a.occupied_resources = function(this, id)
+		check_object_type(this, "agent")
+		base.assert(base.type(id) == "number" or id == nil, "id argument must be a number")
+
+		if not id then
+			id = this.id
+		end
+		local view = id ~= this.id  and this.agent_view[id] or this.view
+
+		local n = 0
+
+		for _, r in base.ipairs(view) do
+			if r:is_owner(id) then
+				n = n + 1
+			end
+		end
+
+		return n
+	end
+
+	a.has_conflicting_view = function(this, id)
+		check_object_type(this, "agent")
+		base.assert(base.type(id) == "number", "id argument must be a number")
+
+		local diff = false
+
+		for i in base.ipairs(this.view) do
+			if this.view[i]:is_taken() and this.agent_view[id][i]:is_taken() and this.view[i].owner ~= this.agent_view[id][i].owner then
+				diff = true
+				break
+			end
+		end
+
+		return diff
 	end
 
 	return a
@@ -248,7 +312,7 @@ function new(hw, n)
 		table.insert(this.agents, agent)
 		agent.id = table.maxn(this.agents)
 
-		return agent.id
+		return agent.id, agent
 	end
 
 	p.create_agents = function(this, n)
@@ -327,5 +391,12 @@ function new(hw, n)
 	end
 
 	return p
+end
+
+if base.__dcop_seed then
+	seed = base.__dcop_seed
+	math.randomseed(seed)
+else
+	base.print("error: __dcop_seed undefined")
 end
 

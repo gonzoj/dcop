@@ -205,3 +205,19 @@ bool view_compare(view_t *v, view_t *w) {
 	return true;
 }
 
+bool view_is_affected(view_t *v, int id, view_t *w) {
+	for (resource_t *i = list_entry(v->resources.prev, typeof(*i), _l), 
+	     *j = list_entry(w->resources.prev, typeof(*j), _l);
+	     &i->_l != &v->resources && &j->_l != &w->resources;
+	     i = list_entry(i->_l.prev, typeof(*i), _l),
+	     j = list_entry(j->_l.prev, typeof(*j), _l)) {
+		if (i->status == RESOURCE_STATUS_TAKEN && i->owner == id) {
+			if (j->status == RESOURCE_STATUS_FREE || (j->status == RESOURCE_STATUS_TAKEN && j->owner != id)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+

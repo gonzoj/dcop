@@ -236,6 +236,18 @@ double agent_evaluate(agent_t *a) {
 	return r;
 }
 
+double agent_evaluate_view(agent_t *a, view_t *v) {
+	view_t *_view = a->view;
+
+	a->view = v;
+
+	double eval = agent_evaluate(a);
+
+	a->view = _view;
+
+	return eval;
+}
+
 void agent_send(agent_t *s, agent_t *r, message_t *msg) {
 	msg->from = s;
 

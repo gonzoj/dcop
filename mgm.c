@@ -39,6 +39,9 @@ typedef struct mgm_agent {
 	view_t *new_view;
 	agent_t *agent;
 	bool consistent;
+	bool stale;
+	bool changed;
+	double initial_eval;
 } mgm_agent_t;
 
 typedef enum {
@@ -56,7 +59,7 @@ static bool consistent = true;
 
 #define mgm_message(m) ((mgm_message_t *) m->buf)
 
-#define DEBUG_MESSAGE(a, f, v...) do { print_debug("[%i]: ", a->agent->id); DEBUG print(f, ## v); } while (0)
+#define DEBUG_MESSAGE(a, f, v...) do { console_lock(); print_debug("[%i]: ", a->agent->id); DEBUG print(f, ## v); console_unlock(); } while (0)
 
 static void mgm_message_free(void *buf) {
 	mgm_message_t *msg = (mgm_message_t *) buf;
@@ -81,7 +84,12 @@ static message_t * mgm_message_new(int type) {
 }
 
 static int send_ok(mgm_agent_t *a) {
-	if (++a->term == max_distance) {
+	// IMPROVEMENT: stop algorithm if no agent has changed its resource assignment
+	if (++a->term == max_distance || a->stale) {
+		if (a->stale) {
+			DEBUG_MESSAGE(a, "stopping algorithm due to stale resource assignment\n");
+		}
+
 		for_each_entry(neighbor_t, n, &a->agent->neighbors) {
 			agent_send(a->agent, n->agent, mgm_message_new(MGM_END));
 		}
@@ -106,29 +114,27 @@ static int send_ok(mgm_agent_t *a) {
 	return 0;
 }
 
-static double get_improvement(mgm_agent_t *a) {
-	view_t *_view = a->agent->view;
-
-	a->agent->view = a->new_view;
-	double eval = agent_evaluate(a->agent);
-
-	a->agent->view = _view;
+static double get_improvement(mgm_agent_t *a, double *eval) {
+	double _eval = agent_evaluate_view(a->agent, a->new_view);
 
 	double improve;
-	if (!isfinite(eval) && !isfinite(a->eval)) {
+	if (!isfinite(_eval) && (eval ? !isfinite(*eval) : !isfinite(a->eval))) {
 		improve = 0;
-	} else if (!isfinite(eval)) {
+	} else if (!isfinite(_eval)) {
 		improve = -INFINITY;
 	} else {
-		improve = a->eval - eval;
+		improve = (eval ? *eval : a->eval) - _eval;
+		if (eval && improve > 0) {
+			*eval = _eval;
+		}
 	}
 
 	return improve;
 }
 
-static void permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t **new_view) {
+static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t **new_view) {
 	if (pos == a->agent->dcop->hardware->number_of_resources) {
-		double improve = get_improvement(a);
+		double improve = get_improvement(a, NULL);
 		if (improve > a->improve) {
 			char *s = view_to_string(a->new_view);
 			DEBUG_MESSAGE(a, "considering new view with improvement %f:\n%s", improve, s);
@@ -137,43 +143,109 @@ static void permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 			view_copy(*new_view, a->new_view);
 
 			a->improve = improve;
+
+			return true;
+		} else {
+			return false;
 		}
 	} else {
 		resource_t *next = list_entry(r->_l.next, resource_t, _l);
 		pos++;
 
-		int status = r->status;
-		int owner = r->owner;
-
 		if (agent_is_owner(a->agent, r)) {
-			r->status = RESOURCE_STATUS_FREE;
+			// IMPROVEMENT: utility won't improve by giving up a previously acquired resource
+			// PROBLEM: agent needs to be transfered to another tile
+			//return permutate_assignment(a, next, pos, new_view);
+
+			bool result = false;
+
+			agent_yield_resource(r);
+			result |= permutate_assignment(a, next, pos, new_view);
+
+			result |= permutate_assignment(a, next, pos, new_view);
+
+			return result;
+		} else {
+			bool result = false;
+
+			int status = r->status;
+			int owner = r->owner;
+
+			result |= permutate_assignment(a, next, pos, new_view);
+
+			agent_claim_resource(a->agent, r);
+			result |= permutate_assignment(a, next, pos, new_view);
+
+			r->status = status;
+			r->owner = owner;
+
+			return result;
 		}
-		permutate_assignment(a, next, pos, new_view);
-
-		r->status = RESOURCE_STATUS_TAKEN;
-		r->owner = a->agent->id;
-		permutate_assignment(a, next, pos, new_view);
-
-		r->status = status;
-		r->owner = owner;
 	}
+}
+
+static double grab_free_resources(mgm_agent_t *a, double *eval) {
+	double improve = 0;
+
+	*eval = a->eval;
+
+	for_each_entry(resource_t, r, &a->new_view->resources) {
+		if (resource_is_free(r)) {
+			agent_claim_resource(a->agent, r);
+			double _improve = get_improvement(a, eval);
+			if (_improve > 0) {
+				DEBUG_MESSAGE(a, "grabbing free resource for improvement %f\n", _improve);
+				improve += _improve;
+			} else {
+				agent_yield_resource(r);
+			}
+		}
+	}
+
+	return improve;
 }
 
 static void improve(mgm_agent_t *a) {
 	a->eval = agent_evaluate(a->agent);
+
+	// IMPROVEMENT: don't try to improve if resource assignment hasn't changed
+	if (a->improve == 0 && !a->changed) {
+		DEBUG_MESSAGE(a, "resource assignment unchanged\n");
+
+		a->improve = 0;
+
+		return;
+	}
+
 	a->improve = 0;
+
+	DEBUG_MESSAGE(a, "tyring to improve...\n");
 
 	view_copy(a->new_view, a->agent->view);
 
+	// IMPROVEMENT: grab any free resource that improves the current utility
+	// PROBLEM: agent could have more constraints fulfilled on another tile but has tile constraint
+	//          and grabs first free resource on a suboptimal tile
+	/*double improve, eval;
+	improve = grab_free_resources(a, &eval);
+	if (improve > 0) {
+		DEBUG_MESSAGE(a, "free resources improved utility by %f\n", improve);
+	}
+
+	double _eval = a->eval;
+	a->eval = eval;*/
+
 	view_t *new_view = view_clone(a->new_view);
 
-	permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), 0, &new_view);
-
-	if (a->improve > 0) {
+	if (permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), 0, &new_view)) {
 		view_copy(a->new_view, new_view);
 	}
 
 	view_free(new_view);
+
+	//a->eval = _eval;
+
+	//a->improve += improve;
 }
 
 static void send_improve(mgm_agent_t *a) {
@@ -219,6 +291,12 @@ static void * mgm(void *arg) {
 
 	a->consistent = true;
 
+	a->stale = false;
+
+	a->changed = true;
+
+	a->initial_eval = agent_evaluate(a->agent);
+
 	mgm_mode_t mode = MGM_WAIT_OK_MODE;
 
 	int counter = 0;
@@ -249,13 +327,19 @@ static void * mgm(void *arg) {
 						for_each_entry(neighbor_t, n, &a->agent->neighbors) {
 							if (!view_compare(a->agent->view, a->agent->agent_view[n->agent->id])) {
 								char *s = view_to_string(a->agent->agent_view[n->agent->id]);
-								DEBUG_MESSAGE(a, "replacing view with agent_view[%i]\n%s", n->agent->id, s);
+								//DEBUG_MESSAGE(a, "replacing view with agent_view[%i]\n%s", n->agent->id, s);
 								free(s);
+
+								if (view_is_affected(a->agent->view, a->agent->id, a->agent->agent_view[n->agent->id])) {
+									a->changed = true;
+								}
 
 								view_copy(a->agent->view, a->agent->agent_view[n->agent->id]);
 								break;
 							}
 						}
+					} else {
+						a->changed = true;
 					}
 
 					send_improve(a);
@@ -263,6 +347,8 @@ static void * mgm(void *arg) {
 					counter = 0;
 
 					a->consistent = true;
+
+					a->stale = true;
 
 					mode = MGM_WAIT_IMPROVE_MODE;
 				}
@@ -277,11 +363,20 @@ static void * mgm(void *arg) {
 					a->can_move = false;
 				}
 
-				if (mgm_message(msg)->eval > 0) {
+				if (mgm_message(msg)->eval == INFINITY) {
+					DEBUG_MESSAGE(a, "agent %i reported eval %f\n", msg->from->id, mgm_message(msg)->eval);
 					a->consistent = false;
 				}
 
+				if (mgm_message(msg)->improve > 0) {
+					a->stale = false;
+				}
+
 				if (counter == a->agent->number_of_neighbors) {
+					if (a->improve > 0) {
+						a->stale = false;
+					}
+
 					if (send_ok(a)) {
 						stop = true;
 						break;
@@ -290,6 +385,8 @@ static void * mgm(void *arg) {
 					agent_clear_agent_view(a->agent);
 
 					counter = 0;
+
+					a->changed = false;
 
 					mode = MGM_WAIT_OK_MODE;
 				}
@@ -376,8 +473,8 @@ static void mgm_init(dcop_t *dcop, int argc, char **argv) {
 
 		_a->agent = a;
 
-		DEBUG_MESSAGE(_a, "initial view of agent:\n");
-		DEBUG agent_dump_view(_a->agent);
+		//DEBUG_MESSAGE(_a, "initial view of agent:\n");
+		//DEBUG agent_dump_view(_a->agent);
 
 		agent_create_thread(a, mgm, _a);
 	}
@@ -392,8 +489,11 @@ static void mgm_cleanup(dcop_t *dcop) {
 
 		agent_cleanup_thread(_a->agent);
 
-		DEBUG_MESSAGE(_a, "final view of agent:\n");
-		DEBUG agent_dump_view(_a->agent);
+		//DEBUG_MESSAGE(_a, "final view of agent:\n");
+		//DEBUG agent_dump_view(_a->agent);
+
+		DEBUG_MESSAGE(_a, "initial utility: %f\n", _a->initial_eval);
+		DEBUG_MESSAGE(_a, "current utility: %f\n", _a->eval);
 
 		view_free(_a->new_view);
 

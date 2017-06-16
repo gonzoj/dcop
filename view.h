@@ -31,5 +31,7 @@ void view_dump(view_t *v);
 
 bool view_compare(view_t *v, view_t *w);
 
+bool view_is_affected(view_t *v, int id, view_t *w);
+
 #endif /* VIEW_H_ */
 

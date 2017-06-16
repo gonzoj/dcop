@@ -67,6 +67,8 @@ void agent_clear_agent_view(agent_t *a);
 
 double agent_evaluate(agent_t *a);
 
+double agent_evaluate_view(agent_t *a, view_t *v);
+
 void agent_send(agent_t *s, agent_t *r, message_t *msg);
 
 message_t * agent_recv(agent_t *r);
@@ -84,6 +86,10 @@ void * agent_cleanup_thread(agent_t *a);
 void agent_dump_view(agent_t *a);
 
 #define agent_has_neighbors(a) (a->number_of_neighbors > 0)
+
+#define agent_claim_resource(a, r) do { r->status = RESOURCE_STATUS_TAKEN; r->owner = a->id; } while (0)
+
+#define agent_yield_resource(r) do { r->status = RESOURCE_STATUS_FREE; } while (0)
 
 #endif /* AGENT_H_ */
 

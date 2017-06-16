@@ -28,5 +28,7 @@ void resource_load(lua_State *L, resource_t *r);
 
 void resource_refresh(lua_State *L, resource_t *r);
 
+#define resource_is_free(r) (r->status == RESOURCE_STATUS_FREE)
+
 #endif /* RESOURCE_H_ */
 

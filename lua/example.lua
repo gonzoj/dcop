@@ -24,19 +24,19 @@ agent2:claim_resource(problem, 2, "REGULAR")
 agent1:add_constraint(constraint.create("TILE"))
 agent1:add_constraint(constraint.create("TYPE", { "STREAM", 1, 1 }))
 agent1:add_constraint(constraint.create("TYPE", { "REGULAR", 1, 1 }))
-agent1:add_constraint(constraint.create("SHARE", { agent2 }))
+agent1:add_constraint(constraint.create("PREFER_FREE", { agent2 }))
 agent1:add_constraint(constraint.create("SHARE", { agent3 }))
 
 agent2:add_constraint(constraint.create("NEC_RE", { 5, 5 }))
 agent2:add_constraint(constraint.create("TYPE", { "RECONFIG", 1, 1 }))
-agent2:add_constraint(constraint.create("SHARE", { agent1 }))
+agent2:add_constraint(constraint.create("PREFER_FREE", { agent1 }))
 agent2:add_constraint(constraint.create("SHARE", { agent3 }))
 
 agent3:add_constraint(constraint.create("TILE"))
 agent3:add_constraint(constraint.create("TYPE", { "REGULAR", 2, 2 }))
 agent3:add_constraint(constraint.create("TYPE", { "STREAM", 1, 1 }))
---agent3:add_constraint(constraint.create("SHARE", { agent1 }))
---agent3:add_constraint(constraint.create("SHARE", { agent2 }))
+agent3:add_constraint(constraint.create("PREFER_FREE", { agent1 }))
+agent3:add_constraint(constraint.create("PREFER_FREE", { agent2 }))
 
 problem:load()
 
