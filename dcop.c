@@ -441,10 +441,10 @@ int main(int argc, char **argv) {
 	print("starting algorithm '%s'\n\n", algo->name);
 	algo->run(dcop);
 
-	SimRoiEnd();
-
 	algo->cleanup(dcop);
 	print("algorithm '%s' finished\n", algo->name);
+
+	SimRoiEnd();
 
 	print("\nprevious resource assignment:\n");
 	view_dump(dcop->hardware->view);
