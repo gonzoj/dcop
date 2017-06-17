@@ -24,7 +24,8 @@
 
 static LIST_HEAD(algorithms);
 
-static time_t r_seed;
+static time_t r_seed = 0;
+static char *r_seedfile = NULL;
 
 static char *algorithm = NULL;
 static char *spec = NULL;
@@ -289,6 +290,12 @@ static void usage() {
 	printf("	--option OPTION, -o OPTION\n");
 	printf("		pass OPTION to SPECIFICATION\n");
 	printf("\n");
+	printf("	--seedfile FILE, -f FILE\n");
+	printf("		write seed to FILE\n");
+	printf("\n");
+	printf("	--seed INTEGER, -s INTEGER\n");
+	printf("		use INTEGER for seeding RNG\n");
+	printf("\n");
 
 	printf("algorithms:\n");
 	printf("\n");
@@ -307,11 +314,13 @@ static int parse_arguments(int argc, char **argv) {
 		{ "debug", no_argument, NULL, 'd' },
 		{ "param", required_argument, NULL, 'p' },
 		{ "option", required_argument, NULL, 'o' },
+		{ "seedfile", required_argument, NULL, 'f' },
+		{ "seed", required_argument, NULL, 's' },
 		{ 0 }
 	};
 
 	while (true) {
-		int result = getopt_long(argc, argv, "ha:l:dp:o:", long_options, NULL);
+		int result = getopt_long(argc, argv, "ha:l:dp:o:f:s:", long_options, NULL);
 		if (result == -1) {
 			break;
 		}
@@ -343,6 +352,17 @@ static int parse_arguments(int argc, char **argv) {
 				spec_argv[spec_argc - 1] = strdup(optarg);
 				break;
 
+			case 'f':
+				r_seedfile = strdup(optarg);
+				break;
+
+			case 's':
+				r_seed = strtol(optarg, NULL, 10);
+				if (r_seed <= 0) {
+					printf("invalid seed given\n");
+					r_seed = 0;
+				}
+				break;
 
 			case '?':
 			case ':':
@@ -406,8 +426,19 @@ int main(int argc, char **argv) {
 
 	print("number of cores available: %i\n", dcop_get_number_of_cores());
 
-	print("creating seed...\n");
-	r_seed = time(NULL);
+	if (r_seed == 0) {
+		print("creating seed...\n");
+		r_seed = time(NULL);
+	}
+	if (r_seedfile) {
+		FILE *f = fopen(r_seedfile, "w");
+		if (f) {
+			fprintf(f, "%li\n", r_seed);
+			fclose(f);
+		} else {
+			print_warning("failed to open seed file '%s'\n", r_seedfile);
+		}
+	}
 
 	print("loading dcop specification from '%s'\n", spec);
 	dcop_t *dcop = dcop_load(spec, spec_argc, spec_argv);
@@ -475,6 +506,9 @@ cleanup:
 			free(spec_argv[i]);
 		}
 		free(spec_argv);
+	}
+	if (r_seedfile) {
+		free(r_seedfile);
 	}
 
 	exit(status);
