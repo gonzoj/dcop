@@ -433,12 +433,14 @@ int main(int argc, char **argv) {
 	if (r_seedfile) {
 		FILE *f = fopen(r_seedfile, "w");
 		if (f) {
+			print("dumping seed to file '%s'\n", r_seedfile);
 			fprintf(f, "%li\n", r_seed);
 			fclose(f);
 		} else {
 			print_warning("failed to open seed file '%s'\n", r_seedfile);
 		}
 	}
+	print("using seed %lX\n", r_seed);
 
 	print("loading dcop specification from '%s'\n", spec);
 	dcop_t *dcop = dcop_load(spec, spec_argc, spec_argv);
