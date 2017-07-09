@@ -1,6 +1,13 @@
 ROOT_DIR:=$(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 
-CPPFLAGS += -DDCOP_ROOT_DIR="\"$(ROOT_DIR)\""
+ifeq ($(shell test -e /usr/include/lua.h && echo -n yes), yes)
+	LUA_LIBRARY=-llua
+else
+	LUA_INCLUDE=-I/usr/include/lua5.1
+	LUA_LIBRARY=-llua5.1
+endif
+
+CPPFLAGS += -DDCOP_ROOT_DIR="\"$(ROOT_DIR)\"" $(LUA_INCLUDE)
 
 include ../sniper/sniper-6.1/config/buildconf.makefile
 
@@ -12,7 +19,7 @@ LD=$(SNIPER_LD)
 
 LDFLAGS += $(SNIPER_LDFLAGS)
 
-LIBS = -lm -llua -ldl -lpthread
+LIBS = -lm $(LUA_LIBRARY) -ldl -lpthread
 
 CSRC := $(wildcard *.c)
 
