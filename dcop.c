@@ -15,6 +15,7 @@
 #include "console.h"
 #include "constraint.h"
 #include "dcop.h"
+#include "distrm.h"
 #include "hardware.h"
 #include "list.h"
 #include "mgm.h"
@@ -48,6 +49,7 @@ static algorithm_t * dcop_get_algorithm(const char *name) {
 
 static void dcop_init_algorithms() {
 	mgm_register();
+	distrm_register();
 }
 
 agent_t * dcop_get_agent(dcop_t *dcop, int id) {
