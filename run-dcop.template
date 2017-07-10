@@ -84,6 +84,6 @@ elif [[ "$mode" = "valgrind" ]]; then
 elif [[ "$mode" = "gdb" ]]; then
 	gdb -ex "set args $*" -ex "run" $DCOP_ROOT/dcop
 else
-	$SNIPER_ROOT/run-sniper $cores $simdir --roi $debug -- $DCOP_ROOT/dcop $*
+	$SNIPER_ROOT/run-sniper $cores $simdir --roi --no-cache-warming --viz $debug -- $DCOP_ROOT/dcop $*
 fi
 

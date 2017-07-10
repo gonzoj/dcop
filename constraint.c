@@ -167,7 +167,9 @@ void constraint_load(agent_t *agent, constraint_t *c) {
 				default:
 					print_warning("object type of argument for constraint '%s' unknown\n", c->name);
 					// this does not actually work, can't use a pseudoindex for luaL_ref
-					arg->ref = luaL_ref(agent->L, LUA_GLOBALSINDEX);
+					//arg->ref = luaL_ref(agent->L, LUA_GLOBALSINDEX);
+					arg->ref = 0xDEADBEEF;
+					lua_pop(agent->L, 1);
 					break;
 			}
 

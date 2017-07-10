@@ -205,7 +205,7 @@ void agent_clear_agent_view(agent_t *a) {
 double agent_evaluate(agent_t *a) {
 	double r = 0;
 
-	SimRoiEnd();
+	//SimRoiEnd();
 
 	if (a->has_lua_constraints) {
 		agent_refresh(a);
@@ -231,7 +231,7 @@ double agent_evaluate(agent_t *a) {
 		}
 	}
 
-	SimRoiStart();
+	//SimRoiStart();
 
 	return r;
 }
@@ -321,7 +321,7 @@ int agent_create_thread(agent_t *a, void * (*algorithm)(void *), void *arg) {
 	if (!r) {
 		cpu_set_t cpuset;
 		CPU_ZERO(&cpuset);
-		CPU_SET((a->id - 1) % dcop_get_number_of_cores(), &cpuset);
+		CPU_SET((a->id) % dcop_get_number_of_cores(), &cpuset);
 		if (pthread_setaffinity_np(a->tid, sizeof(cpu_set_t), &cpuset)) {
 			print_warning("failed to set core affinity for agent %i\n", a->id);
 		}

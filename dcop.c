@@ -1,4 +1,8 @@
+#define _GNU_SOURCE
+
 #include <getopt.h>
+#include <pthread.h>
+#include <sched.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -405,6 +409,8 @@ error:
 }
 
 int main(int argc, char **argv) {
+	//SimSetInstrumentMode(SIM_OPT_INSTRUMENT_FASTFORWARD);
+
 	dcop_init_algorithms();
 
 	if (parse_arguments(argc, argv)) {
@@ -425,6 +431,14 @@ int main(int argc, char **argv) {
 	console_init();
 
 	print("number of cores available: %i\n", dcop_get_number_of_cores());
+
+	print("pinning main thread to core 0\n");
+	cpu_set_t cpuset;
+	CPU_ZERO(&cpuset);
+	CPU_SET(0, &cpuset);
+	if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset)) {
+		print_warning("failed to set core affinity for main thread\n");
+	}
 
 	if (r_seed == 0) {
 		print("creating seed...\n");
