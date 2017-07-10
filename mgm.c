@@ -42,6 +42,7 @@ typedef struct mgm_agent {
 	bool stale;
 	bool changed;
 	double initial_eval;
+	double best_eval;
 } mgm_agent_t;
 
 typedef enum {
@@ -132,37 +133,43 @@ static double get_improvement(mgm_agent_t *a, double *eval) {
 	return improve;
 }
 
-static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t **new_view) {
+static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t **new_view, double *new_eval) {
+	// IMPROVEMENT: stop when optimal utility is acquired
+	if (new_eval != &a->best_eval && *new_eval == a->best_eval) {
+		return true;
+	}
+
 	if (pos == a->agent->dcop->hardware->number_of_resources) {
-		double improve = get_improvement(a, NULL);
-		if (improve > a->improve) {
+		double improve = get_improvement(a, new_eval);
+		if (improve > 0) {
 			char *s = view_to_string(a->new_view);
 			DEBUG_MESSAGE(a, "considering new view with improvement %f:\n%s", improve, s);
 			free(s);
 
 			view_copy(*new_view, a->new_view);
 
-			a->improve = improve;
+			a->improve += improve;
 
-			return true;
-		} else {
-			return false;
+			if (new_eval != &a->best_eval && *new_eval == a->best_eval) {
+				DEBUG_MESSAGE(a, "found assignment with optimal utility\n");
+				return true;
+			}
 		}
+		return false;
 	} else {
 		resource_t *next = list_entry(r->_l.next, resource_t, _l);
 		pos++;
 
 		if (agent_is_owner(a->agent, r)) {
-			// IMPROVEMENT: utility won't improve by giving up a previously acquired resource
-			// PROBLEM: agent needs to be transfered to another tile
-			//return permutate_assignment(a, next, pos, new_view);
-
 			bool result = false;
 
 			agent_yield_resource(r);
-			result |= permutate_assignment(a, next, pos, new_view);
+			result |= permutate_assignment(a, next, pos, new_view, new_eval);
+			if (result) {
+				return result;
+			}
 
-			result |= permutate_assignment(a, next, pos, new_view);
+			result |= permutate_assignment(a, next, pos, new_view, new_eval);
 
 			return result;
 		} else {
@@ -171,10 +178,13 @@ static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 			int status = r->status;
 			int owner = r->owner;
 
-			result |= permutate_assignment(a, next, pos, new_view);
+			result |= permutate_assignment(a, next, pos, new_view, new_eval);
+			if (result) {
+				return result;
+			}
 
 			agent_claim_resource(a->agent, r);
-			result |= permutate_assignment(a, next, pos, new_view);
+			result |= permutate_assignment(a, next, pos, new_view, new_eval);
 
 			r->status = status;
 			r->owner = owner;
@@ -184,25 +194,58 @@ static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 	}
 }
 
-static double grab_free_resources(mgm_agent_t *a, double *eval) {
-	double improve = 0;
+static void find_assignment(mgm_agent_t *a) {
+	a->improve = 0;
 
-	*eval = a->eval;
+	view_copy(a->new_view, a->agent->view);
 
-	for_each_entry(resource_t, r, &a->new_view->resources) {
-		if (resource_is_free(r)) {
-			agent_claim_resource(a->agent, r);
-			double _improve = get_improvement(a, eval);
-			if (_improve > 0) {
-				DEBUG_MESSAGE(a, "grabbing free resource for improvement %f\n", _improve);
-				improve += _improve;
-			} else {
-				agent_yield_resource(r);
-			}
+	view_t *new_view = view_clone(a->new_view);
+	double new_eval = a->eval;
+
+	permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), 0, &new_view, &new_eval);
+	view_copy(a->new_view, new_view);
+
+	view_free(new_view);
+}
+
+static bool try_free_resources(mgm_agent_t *a) {
+	a->improve = 0;
+
+	view_copy(a->new_view, a->agent->view);
+
+	view_t *_view = a->new_view;
+
+	int pos = 0;
+
+	view_t *free_list = view_clone(a->new_view);
+	for_each_entry_safe(resource_t, r, _r, &free_list->resources) {
+		if (!resource_is_free(r)) {
+			list_del(&r->_l);
+			resource_free(r);
+
+			pos++;
 		}
 	}
 
-	return improve;
+	if (pos == a->agent->dcop->hardware->number_of_resources) {
+		return false;
+	}
+
+	a->new_view = free_list;
+
+	view_t *new_view = view_clone(a->new_view);
+	double new_eval = a->eval;
+
+	bool result = permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), pos, &new_view, &new_eval);
+
+	a->new_view = _view;
+	view_update(a->new_view, new_view);
+
+	view_free(new_view);
+
+	view_free(free_list);
+
+	return result;
 }
 
 static void improve(mgm_agent_t *a) {
@@ -211,41 +254,31 @@ static void improve(mgm_agent_t *a) {
 	// IMPROVEMENT: don't try to improve if resource assignment hasn't changed
 	if (a->improve == 0 && !a->changed) {
 		DEBUG_MESSAGE(a, "resource assignment unchanged\n");
-
-		a->improve = 0;
-
 		return;
 	}
 
 	a->improve = 0;
 
-	DEBUG_MESSAGE(a, "tyring to improve...\n");
-
-	view_copy(a->new_view, a->agent->view);
-
-	// IMPROVEMENT: grab any free resource that improves the current utility
-	// PROBLEM: agent could have more constraints fulfilled on another tile but has tile constraint
-	//          and grabs first free resource on a suboptimal tile
-	/*double improve, eval;
-	improve = grab_free_resources(a, &eval);
-	if (improve > 0) {
-		DEBUG_MESSAGE(a, "free resources improved utility by %f\n", improve);
+	// IMPROVEMENT: don't try to improve when already at optimal utility
+	if (a->eval == a->best_eval) {
+		DEBUG_MESSAGE(a, "already at optimal utility\n");
+		return;
 	}
 
-	double _eval = a->eval;
-	a->eval = eval;*/
-
-	view_t *new_view = view_clone(a->new_view);
-
-	if (permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), 0, &new_view)) {
-		view_copy(a->new_view, new_view);
+	// IMPROVEMENT: don't try to improve immediately after having changed assignment
+	if (a->can_move) {
+		DEBUG_MESSAGE(a, "changed assignment last round\n");
+		return;
 	}
 
-	view_free(new_view);
+	DEBUG_MESSAGE(a, "tyring to improve... (utility: %f)\n", a->eval);
 
-	//a->eval = _eval;
-
-	//a->improve += improve;
+	// IMPROVEMENT: try to acquire optimal utility by only looking at free resources
+	if (try_free_resources(a)) {
+		DEBUG_MESSAGE(a, "free resources satisfied constraints\n");
+	} else {
+		find_assignment(a);
+	}
 }
 
 static void send_improve(mgm_agent_t *a) {
@@ -296,6 +329,18 @@ static void * mgm(void *arg) {
 	a->changed = true;
 
 	a->initial_eval = agent_evaluate(a->agent);
+
+	for_each_entry(resource_t, r, &a->new_view->resources) {
+		r->status = RESOURCE_STATUS_FREE;
+	}
+	a->best_eval = agent_evaluate_view(a->agent, a->new_view);
+
+	view_t *best_view = view_clone(a->new_view);
+
+	permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), 0, &best_view, &a->best_eval);
+	DEBUG_MESSAGE(a, "optimal utility: %f\n", a->best_eval);
+
+	view_free(best_view);
 
 	mgm_mode_t mode = MGM_WAIT_OK_MODE;
 

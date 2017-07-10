@@ -132,10 +132,14 @@ constraints["DOWNEY"] = function(param)
 	local d_A = downey(a_A, a_sigma, a:occupied_resources())
 	local d_B = downey(b_A, b_sigma, a:occupied_resources(b))
 
-	if (d_A > d_B) then
-		return 1 / (d_A - d_B)
+	if d_A > d_B then
+		--return 1 / (d_A - d_B)
+		return 0
+	elseif d_B > d_A then
+		--return d_B - d_A
+		return 1
 	else
-		return math.huge
+		return a.id > b and 1 or 0
 	end
 end
 
@@ -144,7 +148,12 @@ constraints["SPEEDUP"] = function(param)
 	local A = param.args[1]
 	local sigma = param.args[2]
 
-	return 1 / downey(A, sigma, agent:occupied_resources())
+	local S = downey(A, sigma, agent:occupied_resources())
+	if S ~= 0 then
+		return 1 / S
+	else
+		return 1
+	end
 end
 
 constraints["AND"] = function(param)

@@ -221,3 +221,33 @@ bool view_is_affected(view_t *v, int id, view_t *w) {
 	return false;
 }
 
+resource_t * view_get_tile(view_t *v, int tile, int *pos) {
+	int i = 0;
+
+	for_each_entry(resource_t, r, &v->resources) {
+		if (r->tile == tile) {
+			if (pos) {
+				*pos = i;
+			}
+
+			return r;
+		}
+
+		i++;
+	}
+
+	return NULL;
+}
+
+void view_update(view_t *v, view_t *w) {
+	for_each_entry(resource_t, r, &v->resources) {
+		for_each_entry(resource_t, _r, &w->resources) {
+			if (r->ref == _r->ref) {
+				r->status = _r->status;
+				r->owner = _r->owner;
+				break;
+			}
+		}
+	}
+}
+

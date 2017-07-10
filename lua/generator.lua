@@ -1,6 +1,3 @@
-local dcop = require("dcop")
-local constraint = require("constraint")
-
 local function toboolean(s)
 	if not s then
 		return false
@@ -86,19 +83,10 @@ local function usage()
 	print("")
 end
 
-local tile = {
-	"REGULAR",
-	"REGULAR",
-	"REGULAR",
-	"REGULAR",
-	"RECONFIG",
-	"STREAM"
-}
-
 local number_of_agents = 2
-local number_of_tiles = 2
-local load_percent = 0.75
-local can_yield = false
+local number_of_tiles = 3
+local load_percent = 0.80
+local can_yield = true
 local init_invader
 
 local function parse_arguments(arg)
@@ -123,7 +111,19 @@ end
 
 parse_arguments(arg)
 
-local problem = dcop.new(dcop.hardware.new({ tile },  number_of_tiles), number_of_agents)
+local dcop = require("dcop")
+local constraint = require("constraint")
+
+local tile = {
+	"REGULAR",
+	"REGULAR",
+	"REGULAR",
+	"REGULAR",
+	"RECONFIG",
+	"STREAM"
+}
+
+local problem = dcop.new(dcop.hardware.new({ { "REGULAR", "RECONFIG" } },  number_of_tiles), number_of_agents)
 
 local number_of_resources = problem.hardware.number_of_resources
 
@@ -186,14 +186,14 @@ if init_invader then
 	end
 else
  	invader = dcop.agent.new()
-	invader:add_constraint(constraint.create("AND", { constraint.create("NEC_RE", { 3, 3 }), constraint.create("TYPE", { "STREAM", 1, 1 }) }))
+	invader:add_constraint(constraint.create("AND", { constraint.create("NEC_RE", { 2, 2 }), constraint.create("TYPE", { "RECONFIG", 1, 1 }) }))
 end
 problem:add_agent(invader)
 --downey_params[invader.id] = { A = math.random(20, 300), sigma = math.random(0, 2.5) }
 downey_params[invader.id] = { A = 300, sigma = 2.5 }
 
 for _, agent in ipairs(problem.agents) do
-	agent:add_constraint(constraint.create("SPEEDUP", { downey_params[agent.id].A, downey_params[agent.id].sigma }))
+	--agent:add_constraint(constraint.create("SPEEDUP", { downey_params[agent.id].A, downey_params[agent.id].sigma }))
 
 	for _, neighbor in ipairs(problem.agents) do
 		if agent ~= neighbor then

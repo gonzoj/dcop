@@ -6,6 +6,7 @@
 #include <lua.h>
 
 #include "list.h"
+#include "resource.h"
 
 typedef struct view {
 	struct list_head resources;
@@ -32,6 +33,10 @@ void view_dump(view_t *v);
 bool view_compare(view_t *v, view_t *w);
 
 bool view_is_affected(view_t *v, int id, view_t *w);
+
+resource_t * view_get_tile(view_t *v, int tile, int *pos);
+
+void view_update(view_t *v, view_t *w);
 
 #endif /* VIEW_H_ */
 
