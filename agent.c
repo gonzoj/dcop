@@ -206,6 +206,7 @@ double agent_evaluate(agent_t *a) {
 	double r = 0;
 
 	//SimRoiEnd();
+	SimSetInstrumentMode(SIM_OPT_INSTRUMENT_WARMUP);
 
 	if (a->has_lua_constraints) {
 		agent_refresh(a);
@@ -232,6 +233,7 @@ double agent_evaluate(agent_t *a) {
 	}
 
 	//SimRoiStart();
+	SimSetInstrumentMode(SIM_OPT_INSTRUMENT_DETAILED);
 
 	return r;
 }

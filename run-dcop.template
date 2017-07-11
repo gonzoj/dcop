@@ -3,8 +3,8 @@
 SNIPER_ROOT=""
 DCOP_ROOT=""
 
-cores="-n 6"
-simdir="-d /var/tmp/snipersim/`date +%m-%d-%H:%M`"
+cores="6"
+simdir="/var/tmp/snipersim/`date +%m-%d-%H:%M`"
 
 OPTIND=1
 
@@ -53,10 +53,10 @@ while getopts "n:s:davgh" opt; do
 			exit 0
 			;;
 		n)
-			cores="-n $OPTARG"
+			cores="$OPTARG"
 			;;
 		s)
-			simdir="-d $OPTARG"
+			simdir=`echo "$OPTARG" | sed -e 's/\/$//'`
 			;;
 		d)
 			debug="--appdebug"
@@ -84,6 +84,8 @@ elif [[ "$mode" = "valgrind" ]]; then
 elif [[ "$mode" = "gdb" ]]; then
 	gdb -ex "set args $*" -ex "run" $DCOP_ROOT/dcop
 else
-	$SNIPER_ROOT/run-sniper $cores $simdir --roi --no-cache-warming --viz $debug -- $DCOP_ROOT/dcop $*
+	$SNIPER_ROOT/run-sniper -n $cores -d $simdir --roi --no-cache-warming --viz $debug -- $DCOP_ROOT/dcop $*
+	$SNIPER_ROOT/tools/cpistack.py -d $simdir -o $simdir/cpi-stack
+	$SNIPER_ROOT/tools/cpistack.py --simplified -d $simdir -o $simdir/cpi-stack-simple
 fi
 
