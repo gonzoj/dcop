@@ -29,6 +29,8 @@
 
 static LIST_HEAD(algorithms);
 
+bool skip_lua = true;
+
 static time_t r_seed = 0;
 static char *r_seedfile = NULL;
 
@@ -302,6 +304,9 @@ static void usage() {
 	printf("	--seed INTEGER, -s INTEGER\n");
 	printf("		use INTEGER for seeding RNG\n");
 	printf("\n");
+	printf("	--precise , -e\n");
+	printf("		do not skip lua callbacks in cache-only mode\n");
+	printf("\n");
 
 	printf("algorithms:\n");
 	printf("\n");
@@ -322,11 +327,12 @@ static int parse_arguments(int argc, char **argv) {
 		{ "option", required_argument, NULL, 'o' },
 		{ "seedfile", required_argument, NULL, 'f' },
 		{ "seed", required_argument, NULL, 's' },
+		{ "precise", no_argument, NULL, 'e' },
 		{ 0 }
 	};
 
 	while (true) {
-		int result = getopt_long(argc, argv, "ha:l:dp:o:f:s:", long_options, NULL);
+		int result = getopt_long(argc, argv, "ha:l:dp:o:f:s:e", long_options, NULL);
 		if (result == -1) {
 			break;
 		}
@@ -368,6 +374,10 @@ static int parse_arguments(int argc, char **argv) {
 					printf("invalid seed given\n");
 					r_seed = 0;
 				}
+				break;
+
+			case 'e':
+				skip_lua = false;
 				break;
 
 			case '?':
@@ -495,7 +505,7 @@ int main(int argc, char **argv) {
 
 	SimRoiEnd();
 
-	print("\nprevious resource assignment:\n");
+	print("\nprevious resource assignment (%lX):\n", r_seed);
 	view_dump(dcop->hardware->view);
 	print("\n");
 

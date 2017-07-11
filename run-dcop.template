@@ -4,7 +4,8 @@ SNIPER_ROOT=""
 DCOP_ROOT=""
 
 cores="6"
-simdir="/var/tmp/snipersim/`date +%m-%d-%H:%M`"
+simdir="/var/tmp/snipersim"
+purge="false"
 
 OPTIND=1
 
@@ -36,6 +37,9 @@ function show_usage {
 	echo "	-g"
 	echo "		run dcop in gdb"
 	echo ""
+	echo "	-p"
+	echo "		delete simulation output"
+	echo ""
 	echo "ARGUMENTS:"
 	echo "	arguments passed to dcop (see dcop --help for more information)"
 	echo ""
@@ -46,7 +50,7 @@ if [[ "$#" -eq 0 ]]; then
 	exit 0
 fi
 
-while getopts "n:s:davgh" opt; do
+while getopts "n:s:davghp" opt; do
 	case "$opt" in
 		h)
 			show_usage
@@ -70,6 +74,9 @@ while getopts "n:s:davgh" opt; do
 		g)
 			mode="gdb"
 			;;
+		p)
+			purge="true"
+			;;
 	esac
 done
 
@@ -84,8 +91,13 @@ elif [[ "$mode" = "valgrind" ]]; then
 elif [[ "$mode" = "gdb" ]]; then
 	gdb -ex "set args $*" -ex "run" $DCOP_ROOT/dcop
 else
+	simdir="$simdir/`date +%m-%d-%H:%M`"
 	$SNIPER_ROOT/run-sniper -n $cores -d $simdir --roi --no-cache-warming --viz $debug -- $DCOP_ROOT/dcop $*
 	$SNIPER_ROOT/tools/cpistack.py -d $simdir -o $simdir/cpi-stack
 	$SNIPER_ROOT/tools/cpistack.py --simplified -d $simdir -o $simdir/cpi-stack-simple
+	if [[ $purge == "true" ]]; then
+		echo "run-dcop: purging simulation output at $simdir"
+		rm -r $simdir
+	fi
 fi
 

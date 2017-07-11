@@ -31,5 +31,9 @@ void console_print(int, const char *, ...);
 #define print_error(f, a...) console_print(CONSOLE_ERROR, f, ## a)
 #define print_debug(f, a...) console_print(CONSOLE_DEBUG, f, ## a)
 
+void console_disable();
+
+void console_enable();
+
 #endif /* CONSOLE_H_ */
 

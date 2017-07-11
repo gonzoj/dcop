@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "console.h"
 
@@ -14,12 +15,17 @@ char *logfile = NULL;
 
 bool debug = false;
 
+static FILE *null = NULL;
+static int _stdout = -1;
+
 void console_init() {
 	pthread_mutexattr_t attr;
 	pthread_mutexattr_init(&attr);
 	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
 	pthread_mutex_init(&console_m, &attr);
 	pthread_mutexattr_destroy(&attr);
+
+	null = fopen("/dev/null", "w");
 }
 
 void console_cleanup() {
@@ -28,6 +34,8 @@ void console_cleanup() {
 	if (logfile) {
 		free(logfile);
 	}
+
+	fclose(null);
 }
 
 void console_lock() {
@@ -104,5 +112,37 @@ void console_print(int type, const char *format, ...) {
 	va_end(args);
 
 	free(fmt);
+}
+
+void console_disable() {
+	if (!null) {
+		return;
+	}
+
+	console_lock();
+
+	fflush(stdout);
+
+	_stdout = dup(STDOUT_FILENO);
+	if (_stdout == -1) {
+		console_unlock();
+	} else {
+		dup2(fileno(null), STDOUT_FILENO);
+	}
+}
+
+void console_enable() {
+	if (_stdout == -1) {
+		return;
+	}
+
+	fflush(stdout);
+
+	dup2(_stdout, STDOUT_FILENO);
+
+	console_unlock();
+
+	close(_stdout);
+	_stdout = -1;
 }
 

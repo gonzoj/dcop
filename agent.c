@@ -205,8 +205,12 @@ void agent_clear_agent_view(agent_t *a) {
 double agent_evaluate(agent_t *a) {
 	double r = 0;
 
-	//SimRoiEnd();
-	SimSetInstrumentMode(SIM_OPT_INSTRUMENT_WARMUP);
+	if (skip_lua) {
+		//console_disable();
+		//SimRoiEnd();
+		SimSetInstrumentMode(SIM_OPT_INSTRUMENT_WARMUP);
+		//console_enable();
+	}
 
 	if (a->has_lua_constraints) {
 		agent_refresh(a);
@@ -232,8 +236,12 @@ double agent_evaluate(agent_t *a) {
 		}
 	}
 
-	//SimRoiStart();
-	SimSetInstrumentMode(SIM_OPT_INSTRUMENT_DETAILED);
+	if (skip_lua) {
+		//SimRoiStart();
+		//console_disable();
+		SimSetInstrumentMode(SIM_OPT_INSTRUMENT_DETAILED);
+		//console_enable();
+	}
 
 	return r;
 }

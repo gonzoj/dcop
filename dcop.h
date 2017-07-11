@@ -1,6 +1,8 @@
 #ifndef DCOP_H_
 #define DCOP_H_
 
+#include <stdbool.h>
+
 #include <lua.h>
 
 typedef struct dcop dcop_t;
@@ -16,6 +18,8 @@ struct dcop {
 	int number_of_agents;
 	struct list_head agents;
 };
+
+extern bool skip_lua;
 
 void dcop_register_algorithm(algorithm_t *a);
 
