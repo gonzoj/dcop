@@ -185,12 +185,6 @@ void agent_load_constraints(agent_t *a) {
 		constraint_load(a, c);
 
 		list_add_tail(&c->_l, &a->constraints);
-
-		if (c->type == CONSTRAINT_TYPE_NATIVE) {
-			a->has_native_constraints = true;
-		} else {
-			a->has_lua_constraints = true;
-		}
 	}
 
 	lua_pop(a->L, 1);
@@ -205,7 +199,7 @@ void agent_clear_agent_view(agent_t *a) {
 double agent_evaluate(agent_t *a) {
 	double r = 0;
 
-	if (skip_lua) {
+	if (skip_lua && a->has_lua_constraints) {
 		//console_disable();
 		//SimRoiEnd();
 		SimSetInstrumentMode(SIM_OPT_INSTRUMENT_WARMUP);
@@ -233,10 +227,21 @@ double agent_evaluate(agent_t *a) {
 	} else {
 		for_each_entry(constraint_t, c, &a->constraints) {
 			r += c->eval(c);
+
+#ifdef DEBUG_NATIVE_CONSTRAINTS
+			console_lock();
+			agent_refresh(a);
+			double _r = c->eval(c);
+			double __r = constraint_evaluate_lua(c);
+			if (_r != __r) {
+				print_error("native constraint '%s' different from lua version: %f vs %f\n", c->name, _r , __r);
+			}
+			console_unlock();
+#endif
 		}
 	}
 
-	if (skip_lua) {
+	if (skip_lua && a->has_lua_constraints) {
 		//SimRoiStart();
 		//console_disable();
 		SimSetInstrumentMode(SIM_OPT_INSTRUMENT_DETAILED);
@@ -355,5 +360,17 @@ void agent_dump_view(agent_t *a) {
 		print("[%i] agent_view[%i]:\n", a->id, n->agent->id);
 		view_dump(a->agent_view[n->agent->id]);
 	}
+}
+
+bool agent_has_conflicting_view(agent_t *a, int id) {
+	for_each_entry(resource_t, r, &a->view->resources) {
+		resource_t *_r = view_get_resource(a->agent_view[id], r->index);
+
+		if (_r && agent_is_owner(a, r) && resource_get_owner(_r) == id) {
+			return true;
+		}
+	}
+
+	return false;
 }
 

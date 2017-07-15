@@ -103,15 +103,19 @@ local function downey(A, sigma, n)
 			S = (n * A) / (A + (sigma / (2 * (n - 1))))
 		elseif A <= n and n <= 2 * A - 1 then
 			S = (n * A) / (sigma * (A - 1/2) + n * (1 - sigma/2))
-		else
+		elseif n >= 2 * A - 1 then
 			S = A
 		end
 	else
 		if n <= 1 and n <= A + A * sigma - sigma then
 			S = (n * A * (sigma + 1)) / (sigma * (n + A - 1) + A)
-		else
+		elseif n >= A + A * sigma - sigma then
 			S = A
 		end
+	end
+
+	if S ~= S then
+		base.print("DOWNEY: " .. A .. " " .. sigma .. " " .. n)
 	end
 
 	return S
@@ -129,17 +133,18 @@ constraints["DOWNEY"] = function(param)
 		return 0
 	end
 
+	--local c = a:conflicts(b)
+
 	local d_A = downey(a_A, a_sigma, a:occupied_resources())
 	local d_B = downey(b_A, b_sigma, a:occupied_resources(b))
 
 	if d_A > d_B then
-		--return 1 / (d_A - d_B)
 		return 0
-	elseif d_B > d_A then
-		--return d_B - d_A
-		return 1
+	--elseif d_B > d_A then
+		--return (d_B - d_A) * c
 	else
-		return a.id > b and 1 or 0
+		--return c / a:occupied_resources(b)
+		return math.huge
 	end
 end
 

@@ -23,6 +23,7 @@
 #include "hardware.h"
 #include "list.h"
 #include "mgm.h"
+#include "native.h"
 #include "resource.h"
 
 #include <sim_api.h>
@@ -369,7 +370,7 @@ static int parse_arguments(int argc, char **argv) {
 				break;
 
 			case 's':
-				r_seed = strtol(optarg, NULL, 10);
+				r_seed = strtol(optarg, NULL, 0);
 				if (r_seed <= 0) {
 					printf("invalid seed given\n");
 					r_seed = 0;
@@ -441,6 +442,8 @@ int main(int argc, char **argv) {
 	}
 	algorithm_argv[0] = strdup(algorithm);
 	console_init();
+
+	register_native_constraints();
 
 	print("number of cores available: %i\n", dcop_get_number_of_cores());
 

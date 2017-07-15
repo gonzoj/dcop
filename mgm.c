@@ -43,6 +43,7 @@ typedef struct mgm_agent {
 	bool changed;
 	double initial_eval;
 	double best_eval;
+	int max_resources;
 } mgm_agent_t;
 
 typedef enum {
@@ -100,7 +101,7 @@ static int send_ok(mgm_agent_t *a) {
 
 	if (a->can_move) {
 		char *s = view_to_string(a->new_view);
-		DEBUG_MESSAGE(a, "updating to view:\n%s", s);
+		DEBUG_MESSAGE(a, "updating to view (%f):\n%s", a->improve, s);
 		free(s);
 
 		view_copy(a->agent->view, a->new_view);
@@ -139,7 +140,17 @@ static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 		return true;
 	}
 
+	// IMPROVEMENT: stop when at maximum number of acquired resources necessary for optimal utility
+	// PROBLEM: if optimal utility can't be reached, next best utility might require more resources
+	//if (pos == a->agent->dcop->hardware->number_of_resources || (a->max_resources >= 0 && view_count_resources(a->new_view, a->agent->id) >= a->max_resources)) {	
 	if (pos == a->agent->dcop->hardware->number_of_resources) {
+		/*
+		console_lock();
+		DEBUG_MESSAGE(a, "trying assignment with utility %f:\n", agent_evaluate_view(a->agent, a->new_view));
+		view_dump(a->new_view);
+		console_unlock();
+		*/
+
 		double improve = get_improvement(a, new_eval);
 		if (improve > 0) {
 			char *s = view_to_string(a->new_view);
@@ -154,21 +165,44 @@ static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 				DEBUG_MESSAGE(a, "found assignment with optimal utility\n");
 				return true;
 			}
+
+			if (*new_eval == 0) {
+				DEBUG_MESSAGE(a, "utility 0 is optimal\n");
+				return true;
+			}
+		} else if (improve == 0 && new_eval == &a->best_eval && view_count_resources(*new_view, a->agent->id) < view_count_resources(a->new_view, a->agent->id)) {
+			view_copy(*new_view, a->new_view);
 		}
 		return false;
 	} else {
+		/*double improve = get_improvement(a, new_eval);
+		if (improve > 0) {
+			char *s = view_to_string(a->new_view);
+			DEBUG_MESSAGE(a, "considering new view with improvement %f:\n%s", improve, s);
+			free(s);
+
+			view_copy(*new_view, a->new_view);
+
+			a->improve += improve;
+
+			if (new_eval != &a->best_eval && *new_eval == a->best_eval) {
+				DEBUG_MESSAGE(a, "found assignment with optimal utility\n");
+				return true;
+			}
+		}*/
+
 		resource_t *next = list_entry(r->_l.next, resource_t, _l);
 		pos++;
 
 		if (agent_is_owner(a->agent, r)) {
 			bool result = false;
 
-			agent_yield_resource(r);
 			result |= permutate_assignment(a, next, pos, new_view, new_eval);
 			if (result) {
 				return result;
 			}
 
+			agent_yield_resource(r);
 			result |= permutate_assignment(a, next, pos, new_view, new_eval);
 
 			return result;
@@ -195,6 +229,8 @@ static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 }
 
 static void find_assignment(mgm_agent_t *a) {
+	DEBUG_MESSAGE(a, "trying to find new assignment\n");
+
 	a->improve = 0;
 
 	view_copy(a->new_view, a->agent->view);
@@ -239,7 +275,9 @@ static bool try_free_resources(mgm_agent_t *a) {
 	bool result = permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), pos, &new_view, &new_eval);
 
 	a->new_view = _view;
-	view_update(a->new_view, new_view);
+	if (result) {
+		view_update(a->new_view, new_view);
+	}
 
 	view_free(new_view);
 
@@ -334,11 +372,15 @@ static void * mgm(void *arg) {
 		r->status = RESOURCE_STATUS_FREE;
 	}
 	a->best_eval = agent_evaluate_view(a->agent, a->new_view);
+	a->max_resources = -1;
 
 	view_t *best_view = view_clone(a->new_view);
 
 	permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), 0, &best_view, &a->best_eval);
 	DEBUG_MESSAGE(a, "optimal utility: %f\n", a->best_eval);
+
+	a->max_resources = view_count_resources(best_view, a->agent->id);
+	DEBUG_MESSAGE(a, "with %i resources\n", a->max_resources);
 
 	view_free(best_view);
 
@@ -529,6 +571,10 @@ static void mgm_init(dcop_t *dcop, int argc, char **argv) {
 }
 
 static void mgm_cleanup(dcop_t *dcop) {
+	double total_initial_eval = 0;
+	double total_optimal_eval = 0;
+	double total_eval = 0;
+
 	for_each_entry(agent_t, a, &dcop->agents) {
 		mgm_agent_t *_a = (mgm_agent_t *) agent_cleanup_thread(a);
 
@@ -546,8 +592,17 @@ static void mgm_cleanup(dcop_t *dcop) {
 			consistent = false;
 		}
 
+		total_initial_eval += _a->initial_eval;
+		total_optimal_eval += _a->best_eval;
+		total_eval += _a->eval;
+
 		free(_a);
 	}
+	DEBUG print("\n");
+
+	DEBUG print("total initial utility: %f\n", total_initial_eval);
+	DEBUG print("total optimal utility: %f\n", total_optimal_eval);
+	DEBUG print("total current utility: %f\n", total_eval);
 	DEBUG print("\n");
 
 	if (!consistent) print_error("error: MGM algorithm finished in an incosistent state\n");

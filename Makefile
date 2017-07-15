@@ -9,6 +9,10 @@ endif
 
 CPPFLAGS += -DDCOP_ROOT_DIR="\"$(ROOT_DIR)\"" $(LUA_INCLUDE)
 
+ifdef DEBUG_NATIVE_CONSTRAINTS
+	CPPFLAGS += -DDEBUG_NATIVE_CONSTRAINTS
+endif
+
 include ../sniper/sniper-6.1/config/buildconf.makefile
 
 CC=$(SNIPER_CC)

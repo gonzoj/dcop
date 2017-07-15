@@ -41,7 +41,7 @@ int view_load(lua_State *L, view_t *v) {
 
 		list_add_tail(&r->_l, &v->resources);
 
-		n++;
+		r->index = n++;
 	}	
 
 	return n;
@@ -249,5 +249,26 @@ void view_update(view_t *v, view_t *w) {
 			}
 		}
 	}
+}
+
+int view_count_resources(view_t *v, int id) {
+	int n = 0;
+	for_each_entry(resource_t, r, &v->resources) {
+		if (r->status == RESOURCE_STATUS_TAKEN && r->owner == id) {
+			n++;
+		}
+	}
+
+	return n;
+}
+
+resource_t * view_get_resource(view_t *v, int index) {
+	for_each_entry(resource_t, r, &v->resources) {
+		if (r->index == index) {
+			return r;
+		}
+	}
+
+	return NULL;
 }
 

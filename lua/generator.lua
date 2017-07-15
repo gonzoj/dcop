@@ -172,7 +172,7 @@ for _, agent in ipairs(problem.agents) do
 		agent:add_constraint(constraint.create("TILE"))
 	end
 
-	downey_params[agent.id] = { A = math.random(20, 300), sigma = math.random(0, 2.5) }
+	downey_params[agent.id] = { A = math.random(20, 300), sigma = math.random() * 2.5 }
 end
 
 -- invading agent
@@ -190,10 +190,10 @@ else
 end
 problem:add_agent(invader)
 --downey_params[invader.id] = { A = math.random(20, 300), sigma = math.random(0, 2.5) }
-downey_params[invader.id] = { A = 300, sigma = 2.5 }
+downey_params[invader.id] = { A = 300, sigma = 0.001 }
 
 for _, agent in ipairs(problem.agents) do
-	--agent:add_constraint(constraint.create("SPEEDUP", { downey_params[agent.id].A, downey_params[agent.id].sigma }))
+	agent:add_constraint(constraint.create("SPEEDUP", { downey_params[agent.id].A, downey_params[agent.id].sigma }))
 
 	for _, neighbor in ipairs(problem.agents) do
 		if agent ~= neighbor then
@@ -203,6 +203,7 @@ for _, agent in ipairs(problem.agents) do
 					downey_params[agent.id].A, downey_params[agent.id].sigma,
 					downey_params[neighbor.id].A, downey_params[neighbor.id].sigma
 				}))
+				agent:add_constraint(constraint.create("PREFER_FREE", { neighbor }))
 			else
 				agent:add_constraint(constraint.create("SHARE", { neighbor }))
 			end

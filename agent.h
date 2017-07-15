@@ -91,5 +91,7 @@ void agent_dump_view(agent_t *a);
 
 #define agent_yield_resource(r) do { r->status = RESOURCE_STATUS_FREE; } while (0)
 
+bool agent_has_conflicting_view(agent_t *a, int id);
+
 #endif /* AGENT_H_ */
 

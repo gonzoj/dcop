@@ -194,7 +194,11 @@ agent.new = function()
 
 		local rating = 0
 		for _, c in base.ipairs(this.constraints) do
-			rating = rating + c.eval(c.param)
+			local _rating = c.eval(c.param)
+			if _rating ~= _rating then
+				base.print("ERROR-NAN: " .. c.name)
+			end
+			rating = rating + _rating
 		end
 		return rating
 	end
@@ -243,13 +247,28 @@ agent.new = function()
 		local diff = false
 
 		for i in base.ipairs(this.view) do
-			if this.view[i]:is_taken() and this.agent_view[id][i]:is_taken() and this.view[i].owner ~= this.agent_view[id][i].owner then
+			if this.view[i]:is_owner(this.id) and this.agent_view[id][i]:is_owner(id) then
 				diff = true
 				break
 			end
 		end
 
 		return diff
+	end
+
+	a.conflicts = function(this, id)
+		check_object_type(this, "agent")
+		base.assert(base.type(id) == "number", "id argument must be a number")
+
+		local c = 0
+
+		for i in base.ipairs(this.view) do
+			if this.view[i]:is_owner(this.id) and this.agent_view[id][i]:is_owner(id) then
+				c = c + 1
+			end
+		end
+
+		return c
 	end
 
 	return a

@@ -38,5 +38,9 @@ resource_t * view_get_tile(view_t *v, int tile, int *pos);
 
 void view_update(view_t *v, view_t *w);
 
+int view_count_resources(view_t *v, int id);
+
+resource_t * view_get_resource(view_t *v, int index);
+
 #endif /* VIEW_H_ */
 

@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -14,9 +15,24 @@ static LIST_HEAD(native_constraints);
 constraint_t * constraint_new() {
 	constraint_t *c = (constraint_t *) calloc(1, sizeof(constraint_t));
 
-	INIT_LIST_HEAD(&c->args);
-
 	return c;
+}
+
+static void argument_free(argument_t *arg) {
+	switch (arg->type) {
+		case OBJECT_TYPE_CONSTRAINT:
+			constraint_free(arg->constraint);
+			break;
+
+		case OBJECT_TYPE_STRING:
+			free(arg->string);
+			break;
+
+		case OBJECT_TYPE_NUMBER:
+		case OBJECT_TYPE_UNKNOWN:
+		default:
+			break;
+	}
 }
 
 void constraint_free(constraint_t *c) {
@@ -25,40 +41,29 @@ void constraint_free(constraint_t *c) {
 			free(c->name);
 		}
 
-		for_each_entry_safe(constraint_arg_t, arg, _arg, &c->args) {
-			list_del(&arg->_l);
-			constraint_arg_free(arg);
+		if (c->param.neighbors) {
+			free(c->param.neighbors);
+		}
+		if (c->param.args) {
+			for (int i = 0; i < c->param.argc; i++) {
+				argument_free(&c->param.args[i]);
+			}
+
+			free(c->param.args);
 		}
 
 		free(c);
 	}
 }
 
-constraint_arg_t * constraint_arg_new(object_type_t type) {
-	constraint_arg_t *arg = (constraint_arg_t *) calloc(1, sizeof(constraint_arg_t));
+void register_native_constraint(const char *name, double (*eval)(struct constraint *)) {
+	constraint_t *c = constraint_new();
+	c->name = strdup(name);
+	c->eval = eval;
 
-	arg->type = type;
-
-	return arg;
-}
-
-void constraint_arg_free(constraint_arg_t *arg) {
-	if (arg) {
-		switch (arg->type) {
-			case OBJECT_TYPE_CONSTRAINT:
-				constraint_free(arg->constraint);
-				break;
-
-			default:
-				break;
-		}
-
-		free(arg);
-	}
-}
-
-void register_native_constraint(constraint_t *c) {
 	list_add_tail(&c->_l, &native_constraints);
+
+	print("registered native constraint '%s'\n", name);
 }
 
 void free_native_constraints() {
@@ -68,7 +73,7 @@ void free_native_constraints() {
 	}
 }
 
-static double constraint_evaluate_lua(constraint_t *c) {
+double constraint_evaluate_lua(constraint_t *c) {
 	lua_getglobal(c->L, "__constraints");
 	lua_rawgeti(c->L, -1, c->ref);
 	lua_getfield(c->L, -1, "eval");
@@ -87,30 +92,28 @@ static double constraint_evaluate_lua(constraint_t *c) {
 }
 
 static object_type_t check_object_type_lua(lua_State *L) {
-	object_type_t result;
-
-	if (!luaL_getmetafield(L, -1, "__object_type")) {
-		return OBJECT_TYPE_UNKNOWN;
-	}
-
-	const char *type = lua_tostring(L, -1);
-	if (!strcmp(type, "resource")) {
-		result = OBJECT_TYPE_RESOURCE;
-	} else if (!strcmp(type, "hardware")) {
-		result = OBJECT_TYPE_HARDWARE;
-	} else if (!strcmp(type, "agent")) {
-		result = OBJECT_TYPE_AGENT;
-	} else if (!strcmp(type, "dcop")) {
-		result = OBJECT_TYPE_DCOP;
-	} else if (!strcmp(type, "constraint")) {
-		result = OBJECT_TYPE_CONSTRAINT;
+	if (lua_isnumber(L, -1)) {
+		return OBJECT_TYPE_NUMBER;
+	} else if (lua_isstring(L, -1)) {
+		return OBJECT_TYPE_STRING;
 	} else {
-		result = OBJECT_TYPE_UNKNOWN;
+		if (!luaL_getmetafield(L, -1, "__object_type")) {
+			return OBJECT_TYPE_UNKNOWN;
+		}
+
+		object_type_t result;
+
+		const char *type = lua_tostring(L, -1);
+		if (!strcmp(type, "constraint")) {
+			result = OBJECT_TYPE_CONSTRAINT;
+		} else {
+			result = OBJECT_TYPE_UNKNOWN;
+		}
+
+		lua_pop(L, 1);
+
+		return result;
 	}
-
-	lua_pop(L, 1);
-
-	return result;
 }
 
 void constraint_load(agent_t *agent, constraint_t *c) {
@@ -122,61 +125,77 @@ void constraint_load(agent_t *agent, constraint_t *c) {
 		if (!strcmp(c->name, _c->name)) {
 			c->type = CONSTRAINT_TYPE_NATIVE;
 			c->eval = _c->eval;
-			print_warning("native constraints are currently unsupported (param.agent and param.neighbors not implemented)\n");
 		}
 	}
-	if (c->type == CONSTRAINT_TYPE_LUA) c->eval = constraint_evaluate_lua;
+	if (c->type == CONSTRAINT_TYPE_LUA) {
+		c->eval = constraint_evaluate_lua;
+
+		agent->has_lua_constraints = true;
+	} else {
+		agent->has_native_constraints = true;
+	}
+
 
 	lua_getfield(agent->L, -2, "param");
+
+	lua_getfield(agent->L, -1, "agent");
+	lua_getfield(agent->L, -1, "id");
+	int id = lua_tonumber(agent->L, -1);
+	c->param.agent = dcop_get_agent(agent->dcop, id);
+	lua_pop(agent->L, 2);
+
+	c->param.neighbors = NULL;
+	c->param.number_of_neighbors = 0;
+	lua_getfield(agent->L, -1, "neighbors");
+	int i = 0;
+	int t = lua_gettop(agent->L);
+	lua_pushnil(agent->L);
+	while (lua_next(agent->L, t)) {
+		c->param.neighbors = (int *) realloc(c->param.neighbors, ++c->param.number_of_neighbors * sizeof(int));
+		c->param.neighbors[i++] = lua_tonumber(agent->L, -1);
+
+		lua_pop(agent->L, 1);
+	}
+	lua_pop(agent->L, 1);
+
+	c->param.args = NULL;
+	c->param.argc = 0;
 	lua_getfield(agent->L, -1, "args");
-	if (lua_type(agent->L, -1) == LUA_TTABLE && check_object_type_lua(agent->L) == OBJECT_TYPE_UNKNOWN) {
-		int t = lua_gettop(agent->L);
-		lua_pushnil(agent->L);
-		while (lua_next(agent->L, t)) {
-			constraint_arg_t *arg = constraint_arg_new(check_object_type_lua(agent->L));
+	i = 0;
+	t = lua_gettop(agent->L);
+	lua_pushnil(agent->L);
+	while (lua_next(agent->L, t)) {
+		c->param.args = (argument_t *) realloc(c->param.args, ++c->param.argc * sizeof(argument_t));
 
-			switch (arg->type) {
-				case OBJECT_TYPE_AGENT:
-					lua_getfield(agent->L, -1, "id");
-					int id = lua_tonumber(agent->L, -1);
-					arg->agent = dcop_get_agent(agent->dcop, id);
-					lua_pop(agent->L, 2);
-					break;
+		c->param.args[i].type =  check_object_type_lua(agent->L);
+		switch (c->param.args[i].type) {
+			case OBJECT_TYPE_NUMBER:
+				c->param.args[i].number = lua_tonumber(agent->L, -1);
 
-				case OBJECT_TYPE_CONSTRAINT:
-					arg->constraint = constraint_new();
-					constraint_load(agent, arg->constraint);
-					break;
+				lua_pop(agent->L, 1);
+				break;
 
-				case OBJECT_TYPE_DCOP:
-					arg->dcop = agent->dcop;
-					lua_pop(agent->L, 1);
-					break;
+			case OBJECT_TYPE_CONSTRAINT:
+				c->param.args[i].constraint = constraint_new();
+				constraint_load(agent, c->param.args[i].constraint);
 
-				case OBJECT_TYPE_HARDWARE:
-					arg->hardware = agent->dcop->hardware;
-					lua_pop(agent->L, 1);
-					break;
+				break;
 
-				case OBJECT_TYPE_RESOURCE:
-					// should probably use the correct ref and not reload?
-					arg->resource = resource_new();
-					resource_load(agent->L, arg->resource);
-					break;
+			case OBJECT_TYPE_STRING:
+				c->param.args[i].string = strdup(lua_tostring(agent->L, -1));
 
-				default:
-					print_warning("object type of argument for constraint '%s' unknown\n", c->name);
-					// this does not actually work, can't use a pseudoindex for luaL_ref
-					//arg->ref = luaL_ref(agent->L, LUA_GLOBALSINDEX);
-					arg->ref = 0xDEADBEEF;
-					lua_pop(agent->L, 1);
-					break;
-			}
+				lua_pop(agent->L, 1);
+				break;
 
-			list_add_tail(&arg->_l, &c->args);
+			case OBJECT_TYPE_UNKNOWN:
+			default:
+				print_warning("unknown object type of argument %i for constraint %s\n", i + 1, c->name);
+
+				lua_pop(agent->L, 1);
+				break;
 		}
-	} else {
-		print_error("constraint arguments must be within a table\n");
+
+		i++;
 	}
 
 	lua_pop(agent->L, 3);
