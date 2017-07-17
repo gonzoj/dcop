@@ -5,9 +5,12 @@
 
 #include <lua.h>
 
+typedef struct resource resource_t;
+
+#include "dcop.h"
 #include "list.h"
 
-typedef struct resource {
+struct resource {
 	struct list_head _l;
 	int ref;
 	char *type;
@@ -19,9 +22,10 @@ typedef struct resource {
 	int owner;
 	int tile;
 	int index;
-} resource_t;
+};
 
-#define resource_new() (resource_t *) calloc(1, sizeof(resource_t))
+//#define resource_new() (resource_t *) calloc(1, sizeof(resource_t))
+#define resource_new() (resource_t *) dcop_malloc_aligned(sizeof(resource_t))
 
 void resource_free(resource_t *r);
 

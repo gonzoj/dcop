@@ -31,30 +31,50 @@ OBJ = $(CSRC:%.c=%.o)
 
 EXE = dcop
 
+DEPDIR := .d
+$(shell mkdir -p $(DEPDIR) >/dev/null)
+
+DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
+
+POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
+
 .PHONY: all
 all: run-script build
 
 .PHONY: build
-build: $(OBJ)
+build: $(EXE)
+
+$(EXE): $(OBJ)
 	$(LD) $(CFLAGS) -o $(EXE) $(OBJ) $(LIBS) $(LDFLAGS)
 	@echo
 	@echo "*** BUILD COMPLETE ***"
 
 %.o: %.c
-	$(CC) -c $(CPPFLAGS) $(CFLAGS) -o $@ $<
+%.o: %.c $(DEPDIR)/%.d
+	$(CC) -c $(DEPFLAGS) $(CPPFLAGS) $(CFLAGS) -o $@ $<
+	$(POSTCOMPILE)
+
+$(DEPDIR)/%.d: ;
+.PRECIOUS: $(DEPDIR)/%.d
+
+include $(wildcard $(patsubst %,$(DEPDIR)/%.d,$(basename $(CSRC))))
 
 .PHONY: clean
 clean:
 	rm -f $(OBJ)
 
 .PHONY: run-script
-run-script:
+run-script: run-dcop
+
+run-dcop: run-dcop.template
 	cp run-dcop.template run-dcop
 	sed -i -e 's/^SNIPER_ROOT=".*"$$/SNIPER_ROOT="$(subst /,\/,$(SNIPER_ROOT))"/' run-dcop
 	sed -i -e 's/^DCOP_ROOT=".*"$$/DCOP_ROOT="$(subst /,\/,$(ROOT_DIR))"/' run-dcop
+	chmod u+x run-dcop
 
 .PHONY: distclean
 distclean: clean
 	rm -f dcop
 	rm -f run-dcop
+	rm -rf $(DEPDIR)
 

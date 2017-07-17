@@ -7,12 +7,14 @@
 #include <lua.h>
 
 #include "console.h"
+#include "dcop.h"
 #include "list.h"
 #include "resource.h"
 #include "view.h"
 
 view_t * view_new() {
-	view_t *v = (view_t *) calloc(1, sizeof(view_t));
+	//view_t *v = (view_t *) calloc(1, sizeof(view_t));
+	view_t *v = (view_t *) dcop_malloc_aligned(sizeof(view_t));
 
 	INIT_LIST_HEAD(&v->resources);
 

@@ -5,12 +5,14 @@
 
 #include <lua.h>
 
+typedef struct view view_t;
+
 #include "list.h"
 #include "resource.h"
 
-typedef struct view {
+struct view {
 	struct list_head resources;
-} view_t;
+};
 
 view_t * view_new();
 

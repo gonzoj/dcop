@@ -76,7 +76,8 @@ static void mgm_message_free(void *buf) {
 }
 
 static message_t * mgm_message_new(int type) {
-	mgm_message_t *msg = (mgm_message_t *) calloc(1, sizeof(mgm_message_t));
+	//mgm_message_t *msg = (mgm_message_t *) calloc(1, sizeof(mgm_message_t));
+	mgm_message_t *msg = (mgm_message_t *) dcop_malloc_aligned(sizeof(mgm_message_t));
 	
 	msg->type = type;
 
@@ -556,7 +557,8 @@ static void mgm_init(dcop_t *dcop, int argc, char **argv) {
 	parse_arguments(argc, argv);
 
 	for_each_entry(agent_t, a, &dcop->agents) {
-		mgm_agent_t *_a = (mgm_agent_t *) calloc(1, sizeof(mgm_agent_t));
+		//mgm_agent_t *_a = (mgm_agent_t *) calloc(1, sizeof(mgm_agent_t));
+		mgm_agent_t *_a = (mgm_agent_t *) dcop_malloc_aligned(sizeof(mgm_agent_t));
 
 		_a->agent = a;
 

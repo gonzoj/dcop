@@ -7,6 +7,7 @@ cores="6"
 simdir="/var/tmp/snipersim"
 purge="false"
 log="false"
+config="-c $DCOP_ROOT/config/invasic.cfg"
 
 OPTIND=1
 
@@ -44,6 +45,9 @@ function show_usage {
 	echo "	-l"
 	echo "		log dcop output"
 	echo ""
+	echo "	-c CONFIG"
+	echo "		use sniper config CONFIG"
+	echo ""
 	echo "ARGUMENTS:"
 	echo "	arguments passed to dcop (see dcop --help for more information)"
 	echo ""
@@ -54,7 +58,7 @@ if [[ "$#" -eq 0 ]]; then
 	exit 0
 fi
 
-while getopts "n:s:davghpl" opt; do
+while getopts "n:s:davghplc:" opt; do
 	case "$opt" in
 		h)
 			show_usage
@@ -84,6 +88,9 @@ while getopts "n:s:davghpl" opt; do
 		l)
 			log="true"
 			;;
+		c)
+			config="$config -c $OPTARG"
+			;;
 	esac
 done
 
@@ -102,12 +109,19 @@ else
 	if [[ $log == "true" ]]; then
 		dcop_log="-l $simdir/dcop.log"
 	fi
-	$SNIPER_ROOT/run-sniper -n $cores -d $simdir --roi --no-cache-warming --viz $debug -- $DCOP_ROOT/dcop $dcop_log $*
-	$SNIPER_ROOT/tools/cpistack.py -d $simdir -o $simdir/cpi-stack
-	$SNIPER_ROOT/tools/cpistack.py --simplified -d $simdir -o $simdir/cpi-stack-simple
-	if [[ $purge == "true" ]]; then
+	$SNIPER_ROOT/run-sniper $config -n $cores -d $simdir --roi --no-cache-warming --viz $debug -- $DCOP_ROOT/dcop $dcop_log $*
+	if [[ $? == 0 ]]; then
+		$SNIPER_ROOT/tools/cpistack.py -d $simdir -o $simdir/cpi-stack
+		$SNIPER_ROOT/tools/cpistack.py --simplified -d $simdir -o $simdir/cpi-stack-simple
+		if [[ $purge == "true" ]]; then
+			echo "run-dcop: purging simulation output at $simdir"
+			rm -r $simdir
+		fi
+	else
+		echo "run-dcop: run-sniper reported an error"
 		echo "run-dcop: purging simulation output at $simdir"
 		rm -r $simdir
+
 	fi
 fi
 

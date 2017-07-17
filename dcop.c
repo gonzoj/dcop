@@ -274,6 +274,14 @@ int dcop_get_number_of_cores() {
 	return sysconf(_SC_NPROCESSORS_ONLN);
 }
 
+void * dcop_malloc_aligned(size_t size) {
+	void *p;
+	posix_memalign(&p, sysconf(_SC_PAGE_SIZE), size);
+	memset(p, 0, size);
+
+	return p;
+}
+
 static void usage() {
 	printf("\n");
 	printf("usage:\n");

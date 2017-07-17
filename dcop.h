@@ -35,5 +35,7 @@ void dcop_merge_view(dcop_t *dcop);
 
 int dcop_get_number_of_cores();
 
+void * dcop_malloc_aligned(size_t size);
+
 #endif /* DCOP_H_ */
 

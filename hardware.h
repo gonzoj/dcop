@@ -5,13 +5,15 @@
 
 #include <lua.h>
 
+typedef struct hardware hardware_t;
+
 #include "view.h"
 
-typedef struct hardware {
+struct hardware {
 	int number_of_tiles;
 	int number_of_resources;
 	view_t *view;
-} hardware_t;
+};
 
 #define hardware_new() (hardware_t *) calloc(1, sizeof(hardware_t))
 

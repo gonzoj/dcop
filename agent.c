@@ -22,7 +22,10 @@
 #include <sim_api.h>
 
 agent_t * agent_new() {
-	agent_t *a = (agent_t *) calloc(1, sizeof(agent_t));
+	//agent_t *a = (agent_t *) calloc(1, sizeof(agent_t));
+	// allocate agents page-aligned, so that coherency traffic is only caused by message passing
+	// TODO: hm... might actually not be necessary (cache lines are pretty small)
+	agent_t *a = dcop_malloc_aligned(sizeof(agent_t));
 
 	pthread_mutex_init(&a->mt, NULL);
 	pthread_cond_init(&a->cv, NULL);
@@ -83,7 +86,8 @@ neighbor_t * neighbor_new(agent_t *a) {
 }
 
 message_t * message_new(void *buf, void (*free)(void *)) {
-	message_t *msg = (message_t *) calloc(1, sizeof(message_t));
+	//message_t *msg = (message_t *) calloc(1, sizeof(message_t));
+	message_t *msg = (message_t *) dcop_malloc_aligned(sizeof(message_t));
 
 	msg->buf = buf;
 	msg->free = free;
@@ -202,6 +206,7 @@ double agent_evaluate(agent_t *a) {
 	if (skip_lua && a->has_lua_constraints) {
 		//console_disable();
 		//SimRoiEnd();
+		// TODO: should we actually do that? manual says there can only be a single (continuous?) ROI
 		SimSetInstrumentMode(SIM_OPT_INSTRUMENT_WARMUP);
 		//console_enable();
 	}
