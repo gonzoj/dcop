@@ -1,6 +1,7 @@
 #ifndef DCOP_H_
 #define DCOP_H_
 
+#include <pthread.h>
 #include <stdbool.h>
 
 #include <lua.h>
@@ -17,6 +18,8 @@ struct dcop {
 	hardware_t *hardware;
 	int number_of_agents;
 	struct list_head agents;
+	pthread_mutex_t m;
+	int ready;
 };
 
 extern bool skip_lua;
@@ -36,6 +39,8 @@ void dcop_merge_view(dcop_t *dcop);
 int dcop_get_number_of_cores();
 
 void * dcop_malloc_aligned(size_t size);
+
+void dcop_start_ROI(dcop_t *dcop);
 
 #endif /* DCOP_H_ */
 

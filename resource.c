@@ -5,20 +5,29 @@
 #include <lauxlib.h>
 
 #include "resource.h"
+#include "tlm.h"
+
+resource_t * resource_new_tlm(tlm_t *tlm) {
+	resource_t *r = (resource_t *) tlm_malloc(tlm, sizeof(resource_t));
+
+	r->tlm = tlm;
+
+	return r;
+}
 
 void resource_free(resource_t *r) {
 	if (r) {
 		if (r->type) {
-			free(r->type);
+			tlm_free(r->tlm, r->type);
 		}
 
-		free(r);
+		tlm_free(r->tlm, r);
 	}
 }
 
 void resource_load(lua_State *L, resource_t *r) {
 	lua_getfield(L, -1, "type");
-	r->type = strdup(lua_tostring(L, -1));
+	r->type = tlm_strdup(r->tlm, lua_tostring(L, -1));
 
 	lua_getfield(L, -2, "status");
 	r->status = lua_tonumber(L, -1);

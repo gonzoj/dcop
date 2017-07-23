@@ -9,12 +9,16 @@ typedef struct view view_t;
 
 #include "list.h"
 #include "resource.h"
+#include "tlm.h"
 
 struct view {
 	struct list_head resources;
+	tlm_t *tlm;
 };
 
 view_t * view_new();
+
+view_t * view_new_tlm(tlm_t *tlm);
 
 void view_free(view_t *v);
 

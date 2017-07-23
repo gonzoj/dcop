@@ -113,6 +113,8 @@ static void dcop_free(dcop_t *dcop) {
 			agent_free(a);
 		}
 
+		pthread_mutex_destroy(&dcop->m);
+
 		free(dcop);
 	}
 }
@@ -267,6 +269,9 @@ static struct dcop * dcop_load(const char *file, int argc, char **argv) {
 		}
 	}
 
+	pthread_mutex_init(&dcop->m, NULL);
+	dcop->ready = 0;
+
 	return dcop;
 }
 
@@ -280,6 +285,16 @@ void * dcop_malloc_aligned(size_t size) {
 	memset(p, 0, size);
 
 	return p;
+}
+
+void dcop_start_ROI(dcop_t *dcop) {
+	pthread_mutex_lock(&dcop->m);
+
+	if (++dcop->ready == dcop->number_of_agents) {
+		SimRoiStart();
+	}
+
+	pthread_mutex_unlock(&dcop->m);
 }
 
 static void usage() {
@@ -316,6 +331,9 @@ static void usage() {
 	printf("	--precise , -e\n");
 	printf("		do not skip lua callbacks in cache-only mode\n");
 	printf("\n");
+	printf("	--shared , -m\n");
+	printf("		do not use TLM for agents but shared memory instead\n");
+	printf("\n");
 
 	printf("algorithms:\n");
 	printf("\n");
@@ -337,11 +355,12 @@ static int parse_arguments(int argc, char **argv) {
 		{ "seedfile", required_argument, NULL, 'f' },
 		{ "seed", required_argument, NULL, 's' },
 		{ "precise", no_argument, NULL, 'e' },
+		{ "shared", no_argument, NULL, 'm' },
 		{ 0 }
 	};
 
 	while (true) {
-		int result = getopt_long(argc, argv, "ha:l:dp:o:f:s:e", long_options, NULL);
+		int result = getopt_long(argc, argv, "ha:l:dp:o:f:s:em", long_options, NULL);
 		if (result == -1) {
 			break;
 		}
@@ -386,7 +405,13 @@ static int parse_arguments(int argc, char **argv) {
 				break;
 
 			case 'e':
+				printf("running in precise mode\n");
 				skip_lua = false;
+				break;
+
+			case 'm':
+				printf("running in shared memory mode\n");
+				use_tlm = false;
 				break;
 
 			case '?':
@@ -506,7 +531,7 @@ int main(int argc, char **argv) {
 	print("initialize algorithm '%s'\n\n", algo->name);
 	algo->init(dcop, algorithm_argc, algorithm_argv);
 
-	SimRoiStart();
+	//SimRoiStart();
 
 	print("starting algorithm '%s'\n\n", algo->name);
 	algo->run(dcop);

@@ -7,8 +7,8 @@
 
 typedef struct resource resource_t;
 
-#include "dcop.h"
 #include "list.h"
+#include "tlm.h"
 
 struct resource {
 	struct list_head _l;
@@ -22,10 +22,12 @@ struct resource {
 	int owner;
 	int tile;
 	int index;
+	tlm_t *tlm;
 };
 
-//#define resource_new() (resource_t *) calloc(1, sizeof(resource_t))
-#define resource_new() (resource_t *) dcop_malloc_aligned(sizeof(resource_t))
+#define resource_new() (resource_t *) calloc(1, sizeof(resource_t))
+
+resource_t * resource_new_tlm(tlm_t *tlm);
 
 void resource_free(resource_t *r);
 

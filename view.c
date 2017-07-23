@@ -7,16 +7,27 @@
 #include <lua.h>
 
 #include "console.h"
-#include "dcop.h"
 #include "list.h"
 #include "resource.h"
+#include "tlm.h"
 #include "view.h"
 
 view_t * view_new() {
-	//view_t *v = (view_t *) calloc(1, sizeof(view_t));
-	view_t *v = (view_t *) dcop_malloc_aligned(sizeof(view_t));
+	view_t *v = (view_t *) calloc(1, sizeof(view_t));
 
 	INIT_LIST_HEAD(&v->resources);
+
+	v->tlm = NULL;
+
+	return v;
+}
+
+view_t * view_new_tlm(tlm_t *tlm) {
+	view_t *v = (view_t *) tlm_malloc(tlm, sizeof(view_t));
+
+	INIT_LIST_HEAD(&v->resources);
+
+	v->tlm = tlm;
 
 	return v;
 }
@@ -28,7 +39,7 @@ void view_free(view_t *v) {
 			resource_free(r);
 		}
 
-		free(v);
+		tlm_free(v->tlm, v);
 	}
 }
 
@@ -38,7 +49,9 @@ int view_load(lua_State *L, view_t *v) {
 	int t = lua_gettop(L);
 	lua_pushnil(L);
 	while (lua_next(L, t)) {
-		resource_t *r = resource_new();
+		resource_t *r;
+		r = resource_new_tlm(v->tlm);
+
 		resource_load(L, r);
 
 		list_add_tail(&r->_l, &v->resources);
@@ -91,13 +104,15 @@ void view_clear(view_t *v) {
 }
 
 view_t * view_clone(view_t *v) {
-	view_t *_v = view_new();
+	view_t *_v;
+	_v = view_new_tlm(v->tlm);
 
 	for_each_entry(resource_t, r, &v->resources) {
-		resource_t *_r = resource_new();
+		resource_t *_r;
+		_r = resource_new_tlm(v->tlm);
 
 		memcpy(_r, r, sizeof(resource_t));
-		_r->type = strdup(r->type);
+		_r->type = tlm_strdup(_r->tlm, r->type);
 
 		list_add_tail(&_r->_l, &_v->resources);
 	}

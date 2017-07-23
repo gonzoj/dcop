@@ -9,6 +9,7 @@
 
 #include "dcop.h"
 #include "list.h"
+#include "tlm.h"
 #include "view.h"
 
 typedef struct agent {
@@ -27,31 +28,36 @@ typedef struct agent {
 	struct list_head constraints;
 	bool has_native_constraints;
 	bool has_lua_constraints;
+	tlm_t *tlm;
 } agent_t;
 
 typedef struct neighbor {
 	struct list_head _l;
 	agent_t *agent;
+	tlm_t *tlm;
 } neighbor_t;
 
 typedef struct message {
 	struct list_head _l;
 	agent_t *from;
 	void *buf;
-	void (*free)(void *);
+	void (*free)(tlm_t *, void *);
+	tlm_t *tlm;
 } message_t;
+
+extern bool use_tlm;
 
 agent_t * agent_new();
 
 void agent_free(agent_t *a);
 
-neighbor_t * neighbor_new(agent_t *a);
+neighbor_t * neighbor_new(tlm_t *tlm, agent_t *a);
 
-#define neighbor_free(n) free(n)
+#define neighbor_free(n) tlm_free(n->tlm, n)
 
-message_t * message_new(void *buf, void (*free)(void *));
+message_t * message_new(tlm_t *tlm, void *buf, void (*free)(tlm_t *, void *));
 
-#define message_free(msg) do { msg->free(msg->buf); free(msg); } while (0)
+#define message_free(msg) do { msg->free(msg->tlm, msg->buf); tlm_free(msg->tlm, msg); } while (0)
 
 void agent_load(dcop_t *dcop, agent_t *a);
 

@@ -9,11 +9,15 @@
 #include "console.h"
 #include "constraint.h"
 #include "list.h"
+#include "tlm.h"
 
 static LIST_HEAD(native_constraints);
 
-constraint_t * constraint_new() {
-	constraint_t *c = (constraint_t *) calloc(1, sizeof(constraint_t));
+constraint_t * constraint_new(tlm_t *tlm) {
+	//constraint_t *c = (constraint_t *) calloc(1, sizeof(constraint_t));
+	constraint_t *c = (constraint_t *) tlm_malloc(tlm, sizeof(constraint_t));
+
+	c->tlm = tlm;
 
 	return c;
 }
@@ -25,7 +29,7 @@ static void argument_free(argument_t *arg) {
 			break;
 
 		case OBJECT_TYPE_STRING:
-			free(arg->string);
+			tlm_free(arg->tlm, arg->string);
 			break;
 
 		case OBJECT_TYPE_NUMBER:
@@ -38,26 +42,26 @@ static void argument_free(argument_t *arg) {
 void constraint_free(constraint_t *c) {
 	if (c) {
 		if (c->name) {
-			free(c->name);
+			tlm_free(c->tlm, c->name);
 		}
 
 		if (c->param.neighbors) {
-			free(c->param.neighbors);
+			tlm_free(c->tlm, c->param.neighbors);
 		}
 		if (c->param.args) {
 			for (int i = 0; i < c->param.argc; i++) {
 				argument_free(&c->param.args[i]);
 			}
 
-			free(c->param.args);
+			tlm_free(c->tlm, c->param.args);
 		}
 
-		free(c);
+		tlm_free(c->tlm, c);
 	}
 }
 
 void register_native_constraint(const char *name, double (*eval)(struct constraint *)) {
-	constraint_t *c = constraint_new();
+	constraint_t *c = constraint_new(NULL);
 	c->name = strdup(name);
 	c->eval = eval;
 
@@ -118,7 +122,7 @@ static object_type_t check_object_type_lua(lua_State *L) {
 
 void constraint_load(agent_t *agent, constraint_t *c) {
 	lua_getfield(agent->L, -1, "name");
-	c->name = strdup(lua_tostring(agent->L, -1));
+	c->name = tlm_strdup(c->tlm, lua_tostring(agent->L, -1));
 
 	c->type = CONSTRAINT_TYPE_LUA;
 	for_each_entry(constraint_t, _c, &native_constraints) {
@@ -151,7 +155,7 @@ void constraint_load(agent_t *agent, constraint_t *c) {
 	int t = lua_gettop(agent->L);
 	lua_pushnil(agent->L);
 	while (lua_next(agent->L, t)) {
-		c->param.neighbors = (int *) realloc(c->param.neighbors, ++c->param.number_of_neighbors * sizeof(int));
+		c->param.neighbors = (int *) tlm_realloc(c->tlm, c->param.neighbors, ++c->param.number_of_neighbors * sizeof(int));
 		c->param.neighbors[i++] = lua_tonumber(agent->L, -1);
 
 		lua_pop(agent->L, 1);
@@ -165,7 +169,9 @@ void constraint_load(agent_t *agent, constraint_t *c) {
 	t = lua_gettop(agent->L);
 	lua_pushnil(agent->L);
 	while (lua_next(agent->L, t)) {
-		c->param.args = (argument_t *) realloc(c->param.args, ++c->param.argc * sizeof(argument_t));
+		c->param.args = (argument_t *) tlm_realloc(c->tlm, c->param.args, ++c->param.argc * sizeof(argument_t));
+
+		c->param.args[i].tlm = c->tlm;
 
 		c->param.args[i].type =  check_object_type_lua(agent->L);
 		switch (c->param.args[i].type) {
@@ -176,13 +182,13 @@ void constraint_load(agent_t *agent, constraint_t *c) {
 				break;
 
 			case OBJECT_TYPE_CONSTRAINT:
-				c->param.args[i].constraint = constraint_new();
+				c->param.args[i].constraint = constraint_new(c->tlm);
 				constraint_load(agent, c->param.args[i].constraint);
 
 				break;
 
 			case OBJECT_TYPE_STRING:
-				c->param.args[i].string = strdup(lua_tostring(agent->L, -1));
+				c->param.args[i].string = tlm_strdup(c->tlm, lua_tostring(agent->L, -1));
 
 				lua_pop(agent->L, 1);
 				break;

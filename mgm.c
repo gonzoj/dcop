@@ -63,7 +63,7 @@ static bool consistent = true;
 
 #define DEBUG_MESSAGE(a, f, v...) do { console_lock(); print_debug("[%i]: ", a->agent->id); DEBUG print(f, ## v); console_unlock(); } while (0)
 
-static void mgm_message_free(void *buf) {
+static void mgm_message_free(tlm_t *tlm, void *buf) {
 	mgm_message_t *msg = (mgm_message_t *) buf;
 
 	if (msg) {
@@ -71,17 +71,28 @@ static void mgm_message_free(void *buf) {
 			view_free(msg->view);
 		}
 
-		free(msg);
+		tlm_free(tlm, msg);
 	}
 }
 
-static message_t * mgm_message_new(int type) {
+static message_t * mgm_message_new(mgm_agent_t *a, int type) {
 	//mgm_message_t *msg = (mgm_message_t *) calloc(1, sizeof(mgm_message_t));
-	mgm_message_t *msg = (mgm_message_t *) dcop_malloc_aligned(sizeof(mgm_message_t));
+	//mgm_message_t *msg = (mgm_message_t *) dcop_malloc_aligned(sizeof(mgm_message_t));
+	mgm_message_t *msg;
+	if (a) {
+		msg = (mgm_message_t *) tlm_malloc(a->agent->tlm, sizeof(mgm_message_t));
+	} else {
+		msg = (mgm_message_t *) calloc(1, sizeof(mgm_message_t));
+	}
 	
 	msg->type = type;
 
-	message_t *m = message_new(msg, mgm_message_free);
+	message_t *m;
+	if (a) {
+		m = message_new(a->agent->tlm, msg, mgm_message_free);
+	} else {
+		m = message_new(NULL, msg, mgm_message_free);
+	}
 
 	return m;
 }
@@ -94,7 +105,7 @@ static int send_ok(mgm_agent_t *a) {
 		}
 
 		for_each_entry(neighbor_t, n, &a->agent->neighbors) {
-			agent_send(a->agent, n->agent, mgm_message_new(MGM_END));
+			agent_send(a->agent, n->agent, mgm_message_new(a, MGM_END));
 		}
 
 		return -1;
@@ -109,7 +120,7 @@ static int send_ok(mgm_agent_t *a) {
 	}
 
 	for_each_entry(neighbor_t, n, &a->agent->neighbors) {
-		message_t *msg = mgm_message_new(MGM_OK);
+		message_t *msg = mgm_message_new(a, MGM_OK);
 		mgm_message(msg)->view = view_clone(a->agent->view);
 		agent_send(a->agent, n->agent, msg);
 	}
@@ -330,7 +341,7 @@ static void send_improve(mgm_agent_t *a) {
 	}
 
 	for_each_entry(neighbor_t, n, &a->agent->neighbors) {
-		message_t *msg = mgm_message_new(MGM_IMPROVE);
+		message_t *msg = mgm_message_new(a, MGM_IMPROVE);
 		mgm_message(msg)->eval = a->eval;
 		mgm_message(msg)->improve = a->improve;
 		mgm_message(msg)->term = a->term;
@@ -354,6 +365,10 @@ static bool filter_mgm_message(message_t *msg, void *mode) {
 
 static void * mgm(void *arg) {
 	mgm_agent_t *a = (mgm_agent_t *) arg;
+
+	tlm_touch(a->agent->tlm);
+
+	dcop_start_ROI(a->agent->dcop);
 
 	a->term = 0;
 	a->can_move = false;
@@ -558,7 +573,8 @@ static void mgm_init(dcop_t *dcop, int argc, char **argv) {
 
 	for_each_entry(agent_t, a, &dcop->agents) {
 		//mgm_agent_t *_a = (mgm_agent_t *) calloc(1, sizeof(mgm_agent_t));
-		mgm_agent_t *_a = (mgm_agent_t *) dcop_malloc_aligned(sizeof(mgm_agent_t));
+		//mgm_agent_t *_a = (mgm_agent_t *) dcop_malloc_aligned(sizeof(mgm_agent_t));
+		mgm_agent_t *_a = (mgm_agent_t *) tlm_malloc(a->tlm, sizeof(mgm_agent_t));
 
 		_a->agent = a;
 
@@ -598,7 +614,7 @@ static void mgm_cleanup(dcop_t *dcop) {
 		total_optimal_eval += _a->best_eval;
 		total_eval += _a->eval;
 
-		free(_a);
+		tlm_free(_a->agent->tlm, _a);
 	}
 	DEBUG print("\n");
 
@@ -612,13 +628,13 @@ static void mgm_cleanup(dcop_t *dcop) {
 
 static void mgm_run(dcop_t *dcop) {
 	for_each_entry(agent_t, a, &dcop->agents) {
-		agent_send(NULL, a, mgm_message_new(MGM_START));
+		agent_send(NULL, a, mgm_message_new(NULL, MGM_START));
 	}
 }
 
 static void mgm_kill(dcop_t *dcop) {
 	for_each_entry(agent_t, a, &dcop->agents) {
-		agent_send(NULL, a, mgm_message_new(MGM_END));
+		agent_send(NULL, a, mgm_message_new(NULL, MGM_END));
 	}
 }
 

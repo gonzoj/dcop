@@ -5,6 +5,7 @@
 
 #include "agent.h"
 #include "list.h"
+#include "tlm.h"
 
 typedef enum {
 	OBJECT_TYPE_NUMBER,
@@ -20,6 +21,7 @@ typedef struct argument {
 		struct constraint *constraint;
 		char *string;
 	};
+	tlm_t *tlm;
 } argument_t;
 
 typedef struct parameter {
@@ -41,9 +43,10 @@ typedef struct constraint {
 	lua_State *L;
 	int ref;
 	double (*eval)(struct constraint *);
+	tlm_t *tlm;
 } constraint_t;
 
-constraint_t * constraint_new();
+constraint_t * constraint_new(tlm_t *tlm);
 
 void constraint_free(constraint_t *c);
 

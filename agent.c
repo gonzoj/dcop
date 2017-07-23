@@ -21,11 +21,23 @@
 
 #include <sim_api.h>
 
+#define TLM_SIZE 128 // KBytes
+
+bool use_tlm = true;
+
 agent_t * agent_new() {
 	//agent_t *a = (agent_t *) calloc(1, sizeof(agent_t));
 	// allocate agents page-aligned, so that coherency traffic is only caused by message passing
 	// TODO: hm... might actually not be necessary (cache lines are pretty small)
-	agent_t *a = dcop_malloc_aligned(sizeof(agent_t));
+	//agent_t *a = dcop_malloc_aligned(sizeof(agent_t));
+
+	tlm_t *tlm = NULL;
+
+	if (use_tlm) {
+		tlm = tlm_create(TLM_SIZE);
+	}
+
+	agent_t *a = (agent_t *) tlm_malloc(tlm, sizeof(agent_t));
 
 	pthread_mutex_init(&a->mt, NULL);
 	pthread_cond_init(&a->cv, NULL);
@@ -34,14 +46,30 @@ agent_t * agent_new() {
 	INIT_LIST_HEAD(&a->constraints);
 	INIT_LIST_HEAD(&a->neighbors);
 
+	a->tlm = tlm;
+
 	return a;
 }
 
 void agent_free(agent_t *a) {
 	if (a) {
+		// TODO: can't free messages because they're possibly allocated in a tlm of an
+		// agent that is already free'd and hence has a destroyed tlm
+		// doesn't really matter though, since tlm_destroy free's up all memory anyway
+		// tlm_free only makes space for more tlm_malloc's
+		/*
 		for_each_entry_safe(message_t, m, _m, &a->msg_queue) {
 			list_del(&m->_l);
 			message_free(m);
+		}
+		*/
+
+		// FIXED: Only free messages if we're not using TLM; When using TLM messages get free'd automatically with tlm_destroy
+		if (!use_tlm) {
+			for_each_entry_safe(message_t, m, _m, &a->msg_queue) {
+				list_del(&m->_l);
+				message_free(m);
+			}
 		}
 
 		view_free(a->view);
@@ -54,7 +82,7 @@ void agent_free(agent_t *a) {
 				}
 			}
 
-			free(a->agent_view);
+			tlm_free(a->tlm, a->agent_view);
 		}
 
 		for_each_entry_safe(neighbor_t, n, _n, &a->neighbors) {
@@ -74,23 +102,29 @@ void agent_free(agent_t *a) {
 			lua_close(a->L);
 		}
 
-		free(a);
+		tlm_destroy(a->tlm);
+
+		//free(a);
 	}
 }
 
-neighbor_t * neighbor_new(agent_t *a) {
-	neighbor_t *n = (neighbor_t *) calloc(1, sizeof(neighbor_t));
+neighbor_t * neighbor_new(tlm_t *tlm, agent_t *a) {
+	//neighbor_t *n = (neighbor_t *) calloc(1, sizeof(neighbor_t));
+	neighbor_t *n = (neighbor_t *) tlm_malloc(tlm, sizeof(neighbor_t));
 	n->agent = a;
+
+	n->tlm = tlm;
 
 	return n;
 }
 
-message_t * message_new(void *buf, void (*free)(void *)) {
-	//message_t *msg = (message_t *) calloc(1, sizeof(message_t));
-	message_t *msg = (message_t *) dcop_malloc_aligned(sizeof(message_t));
+message_t * message_new(tlm_t *tlm, void *buf, void (*free)(tlm_t *, void *)) {
+	message_t *msg = (message_t *) tlm_malloc(tlm, sizeof(message_t));
 
 	msg->buf = buf;
 	msg->free = free;
+
+	msg->tlm = tlm;
 
 	return msg;
 }
@@ -108,7 +142,7 @@ void agent_load(dcop_t *dcop, agent_t *a) {
 
 void agent_load_view(agent_t *a) {
 	lua_getfield(a->L, -1, "view");
-	a->view = view_new();
+	a->view = view_new_tlm(a->tlm);
 	view_load(a->L, a->view);
 
 	lua_pop(a->L, 1);
@@ -136,11 +170,11 @@ void agent_load_neighbors(agent_t *a) {
 		agent_t *n = dcop_get_agent(dcop, id);
 
 		if (!agent_is_neighbor(a, n)) {
-			list_add_tail(&neighbor_new(n)->_l, &a->neighbors);
+			list_add_tail(&neighbor_new(a->tlm, n)->_l, &a->neighbors);
 			a->number_of_neighbors++;
 		}
 		if (!agent_is_neighbor(n, a)) {
-			list_add_tail(&neighbor_new(a)->_l, &n->neighbors);
+			list_add_tail(&neighbor_new(n->tlm, a)->_l, &n->neighbors);
 			n->number_of_neighbors++;
 		}
 
@@ -155,15 +189,16 @@ void agent_load_agent_view(agent_t *a) {
 
 	lua_getfield(a->L, -1, "agent_view");
 
-	a->agent_view = (view_t **) realloc(a->agent_view, (dcop->number_of_agents + 1) * sizeof(view_t *));
-	memset(a->agent_view, 0, (dcop->number_of_agents + 1) * sizeof(view_t *));
+	//a->agent_view = (view_t **) realloc(a->agent_view, (dcop->number_of_agents + 1) * sizeof(view_t *));
+	//memset(a->agent_view, 0, (dcop->number_of_agents + 1) * sizeof(view_t *));
+	a->agent_view = (view_t **) tlm_malloc(a->tlm, (dcop->number_of_agents + 1) * sizeof(view_t *));
 
 	for (int i = 1; i <= dcop->number_of_agents; i++) {
 		if (agent_is_neighbor(a, dcop_get_agent(dcop, i))) {
 			lua_pushnumber(a->L, i);
 			lua_gettable(a->L, -2);
 
-			a->agent_view[i] = view_new();
+			a->agent_view[i] = view_new_tlm(a->tlm);
 			view_load(a->L, a->agent_view[i]);
 
 			lua_pop(a->L, 1);
@@ -185,7 +220,7 @@ void agent_load_constraints(agent_t *a) {
 	int t = lua_gettop(a->L);
 	lua_pushnil(a->L);
 	while (lua_next(a->L, t)) {
-		constraint_t *c = constraint_new();
+		constraint_t *c = constraint_new(a->tlm);
 		constraint_load(a, c);
 
 		list_add_tail(&c->_l, &a->constraints);
