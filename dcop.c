@@ -113,7 +113,8 @@ static void dcop_free(dcop_t *dcop) {
 			agent_free(a);
 		}
 
-		pthread_mutex_destroy(&dcop->m);
+		pthread_mutex_destroy(&dcop->mt);
+		pthread_cond_destroy(&dcop->cv);
 
 		free(dcop);
 	}
@@ -269,7 +270,8 @@ static struct dcop * dcop_load(const char *file, int argc, char **argv) {
 		}
 	}
 
-	pthread_mutex_init(&dcop->m, NULL);
+	pthread_mutex_init(&dcop->mt, NULL);
+	pthread_cond_init(&dcop->cv, NULL);
 	dcop->ready = 0;
 
 	return dcop;
@@ -288,13 +290,37 @@ void * dcop_malloc_aligned(size_t size) {
 }
 
 void dcop_start_ROI(dcop_t *dcop) {
-	pthread_mutex_lock(&dcop->m);
+	pthread_mutex_lock(&dcop->mt);
 
 	if (++dcop->ready == dcop->number_of_agents) {
 		SimRoiStart();
+
+		pthread_cond_broadcast(&dcop->cv);
+	} else {
+		pthread_cond_wait(&dcop->cv, &dcop->mt);
 	}
 
-	pthread_mutex_unlock(&dcop->m);
+	pthread_mutex_unlock(&dcop->mt);
+}
+
+void dcop_stop_ROI(dcop_t *dcop) {
+	pthread_mutex_lock(&dcop->mt);
+
+	if (dcop->ready == 0) {
+		pthread_mutex_unlock(&dcop->mt);
+
+		return;
+	}
+
+	if (--dcop->ready == 0) {
+		SimRoiEnd();
+
+		pthread_cond_broadcast(&dcop->cv);
+	} else {
+		pthread_cond_wait(&dcop->cv, &dcop->mt);
+	}
+
+	pthread_mutex_unlock(&dcop->mt);
 }
 
 static void usage() {
@@ -539,7 +565,7 @@ int main(int argc, char **argv) {
 	algo->cleanup(dcop);
 	print("algorithm '%s' finished\n", algo->name);
 
-	SimRoiEnd();
+	//SimRoiEnd();
 
 	print("\nprevious resource assignment (%lX):\n", r_seed);
 	view_dump(dcop->hardware->view);

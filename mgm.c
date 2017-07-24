@@ -63,6 +63,9 @@ static bool consistent = true;
 
 #define DEBUG_MESSAGE(a, f, v...) do { console_lock(); print_debug("[%i]: ", a->agent->id); DEBUG print(f, ## v); console_unlock(); } while (0)
 
+// TODO: could console_lock (mutex in SM) cause CC traffic?
+//#define DEBUG_MESSAGE(a, f, v...)
+
 static void mgm_message_free(tlm_t *tlm, void *buf) {
 	mgm_message_t *msg = (mgm_message_t *) buf;
 
@@ -112,9 +115,9 @@ static int send_ok(mgm_agent_t *a) {
 	}
 
 	if (a->can_move) {
-		char *s = view_to_string(a->new_view);
-		DEBUG_MESSAGE(a, "updating to view (%f):\n%s", a->improve, s);
-		free(s);
+		//char *s = view_to_string(a->new_view);
+		//DEBUG_MESSAGE(a, "updating to view (%f):\n%s", a->improve, s);
+		//free(s);
 
 		view_copy(a->agent->view, a->new_view);
 	}
@@ -165,9 +168,9 @@ static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 
 		double improve = get_improvement(a, new_eval);
 		if (improve > 0) {
-			char *s = view_to_string(a->new_view);
-			DEBUG_MESSAGE(a, "considering new view with improvement %f:\n%s", improve, s);
-			free(s);
+			//char *s = view_to_string(a->new_view);
+			//DEBUG_MESSAGE(a, "considering new view with improvement %f:\n%s", improve, s);
+			//free(s);
 
 			view_copy(*new_view, a->new_view);
 
@@ -500,6 +503,8 @@ static void * mgm(void *arg) {
 				break;
 
 			case MGM_START:
+				//dcop_start_ROI(a->agent->dcop);
+
 				if (!agent_has_neighbors(a->agent)) {
 					// algorithm not really suited for that case, not sure what to do here...
 					improve(a);
@@ -515,6 +520,8 @@ static void * mgm(void *arg) {
 
 		message_free(msg);
 	}
+
+	dcop_stop_ROI(a->agent->dcop);
 
 	// pthread_exit crashes sniper/valgrind with signal 4 illegal instruction?
 	//pthread_exit(agent);
@@ -615,6 +622,8 @@ static void mgm_cleanup(dcop_t *dcop) {
 		total_eval += _a->eval;
 
 		tlm_free(_a->agent->tlm, _a);
+
+		DEBUG_MESSAGE(_a, "TLM used: %uKB\n", _a->agent->tlm->max_used / 1024);
 	}
 	DEBUG print("\n");
 

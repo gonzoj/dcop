@@ -20,9 +20,11 @@ typedef struct tlm {
 	tlm_entry_t *buf;
 	struct list_head entries;
 	pthread_mutex_t m;
+	size_t cur_used;
+	size_t max_used;
 } tlm_t;
 
-tlm_t * tlm_create(size_t mbytes);
+tlm_t * tlm_create(size_t kbytes);
 
 void * tlm_malloc(tlm_t *tlm, size_t size);
 

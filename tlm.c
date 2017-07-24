@@ -6,11 +6,11 @@
 #include "list.h"
 #include "tlm.h"
 
-#define MAX_ENTRIES 512
+#define MAX_ENTRIES 1024
 
-tlm_t * tlm_create(size_t mbytes) {
+tlm_t * tlm_create(size_t kbytes) {
 	tlm_t *tlm = malloc(sizeof(tlm_t));
-	tlm->size = mbytes * 1024;
+	tlm->size = kbytes * 1024;
 	posix_memalign(&tlm->base, sysconf(_SC_PAGE_SIZE), tlm->size + sizeof(tlm_entry_t) * MAX_ENTRIES);
 	memset(tlm->base, 0, tlm->size + sizeof(tlm_entry_t) * MAX_ENTRIES);
 	tlm->buf = tlm->base;
@@ -24,6 +24,9 @@ tlm_t * tlm_create(size_t mbytes) {
 	list_add_tail(&entry->_l, &tlm->entries);
 
 	pthread_mutex_init(&tlm->m, NULL);
+
+	tlm->cur_used = 0;
+	tlm->max_used = 0;
 
 	return tlm;
 }
@@ -53,6 +56,7 @@ void * tlm_malloc(tlm_t *tlm, size_t size) {
 			if (!entry) {
 				pthread_mutex_unlock(&tlm->m);
 
+				print_error("tlm: no free TLM entries for accounting left\n");
 				print_error("tlm: failed to allocate memory (%i bytes)\n", size);
 
 				return NULL;
@@ -71,6 +75,11 @@ void * tlm_malloc(tlm_t *tlm, size_t size) {
 				list_del(&e->_l);
 			}
 
+			tlm->cur_used += size;
+			if (tlm->cur_used > tlm->max_used) {
+				tlm->max_used = tlm->cur_used;
+			}
+
 			pthread_mutex_unlock(&tlm->m);
 
 			return entry->base;
@@ -80,6 +89,7 @@ void * tlm_malloc(tlm_t *tlm, size_t size) {
 	pthread_mutex_unlock(&tlm->m);
 
 	print_error("tlm: failed to allocate memory (%i bytes)\n", size);
+	print_error("tlm: memory currently used: %u KB\n", tlm->cur_used / 1024);
 
 	return NULL;
 }
@@ -95,6 +105,8 @@ void tlm_free(tlm_t *tlm, void *p) {
 
 	for_each_entry(tlm_entry_t, e, &tlm->entries) {
 		if (e->base == p) {
+			tlm->cur_used -= e->size;
+
 			e->free = true;
 
 			tlm_entry_t *prev = list_entry(e->_l.prev, tlm_entry_t, _l);
@@ -118,8 +130,6 @@ void tlm_free(tlm_t *tlm, void *p) {
 
 			pthread_mutex_unlock(&tlm->m);
 
-			//print("tlm: free suceeded\n");
-
 			return;
 		}
 	}
@@ -137,16 +147,14 @@ void tlm_destroy(tlm_t *tlm) {
 	}
 }
 
-void tlm_touch(tlm_t *tlm) {
+void __attribute__((optimize("O0"))) tlm_touch(tlm_t *tlm) {
 	if (!tlm) {
 		return;
 	}
 
-	int _c = 0;
-	for (int i = 0; i < tlm->size; i++) {
-		char c = ((char *) tlm->base + sizeof(tlm_entry_t) * MAX_ENTRIES)[i];
-		(void) c;
-		_c += c;
+	for (int i = 0; i < tlm->size + sizeof(tlm_entry_t) * MAX_ENTRIES; i++) {
+		char c = ((char *) tlm->base)[i];
+		((volatile char *) tlm->base)[i] = c;
 	}
 }
 
@@ -205,8 +213,19 @@ void * tlm_realloc(tlm_t *tlm, void *p, size_t size) {
 				entry->size = diff;
 				entry->free = true;
 				list_add_tail(&entry->_l, &tlm->entries);
+
+				tlm->cur_used -= diff;
+
+				pthread_mutex_unlock(&tlm->m);
+
+				return e->base;
 			} else {
 				size_t diff = size - e->size;
+
+				tlm->cur_used += diff;
+				if (tlm->cur_used > tlm->max_used) {
+					tlm->max_used = tlm->cur_used;
+				}
 
 				tlm_entry_t *prev = list_entry(e->_l.prev, tlm_entry_t, _l);
 				tlm_entry_t *next = list_entry(e->_l.next, tlm_entry_t, _l);
@@ -260,7 +279,7 @@ void * tlm_realloc(tlm_t *tlm, void *p, size_t size) {
 
 	pthread_mutex_unlock(&tlm->m);
 
-	print_error("tlm (%lX): failed to realloc pointer %lX\n", tlm->base, p);
+	print_error("tlm (%lX): failed to re-allocate pointer %lX\n", tlm->base, p);
 
 	return NULL;
 }

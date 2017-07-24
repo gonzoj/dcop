@@ -18,7 +18,8 @@ struct dcop {
 	hardware_t *hardware;
 	int number_of_agents;
 	struct list_head agents;
-	pthread_mutex_t m;
+	pthread_mutex_t mt;
+	pthread_cond_t cv;
 	int ready;
 };
 
@@ -41,6 +42,8 @@ int dcop_get_number_of_cores();
 void * dcop_malloc_aligned(size_t size);
 
 void dcop_start_ROI(dcop_t *dcop);
+
+void dcop_stop_ROI(dcop_t *dcop);
 
 #endif /* DCOP_H_ */
 
