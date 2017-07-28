@@ -603,7 +603,7 @@ static void mgm_cleanup(dcop_t *dcop) {
 	for_each_entry(agent_t, a, &dcop->agents) {
 		mgm_agent_t *_a = (mgm_agent_t *) agent_cleanup_thread(a);
 
-		agent_cleanup_thread(_a->agent);
+		//agent_cleanup_thread(_a->agent);
 
 		//DEBUG_MESSAGE(_a, "final view of agent:\n");
 		//DEBUG agent_dump_view(_a->agent);

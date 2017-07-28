@@ -13,6 +13,7 @@ typedef struct view view_t;
 
 struct view {
 	struct list_head resources;
+	int size;
 	tlm_t *tlm;
 };
 
@@ -47,6 +48,14 @@ void view_update(view_t *v, view_t *w);
 int view_count_resources(view_t *v, int id);
 
 resource_t * view_get_resource(view_t *v, int index);
+
+void view_add_resource(view_t *v, resource_t *r);
+
+void view_del_resource(view_t *v, resource_t *r);
+
+view_t * view_concat(view_t *v, view_t *w);
+
+view_t * view_cut(view_t *v, view_t *w);
 
 #endif /* VIEW_H_ */
 

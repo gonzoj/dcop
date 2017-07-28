@@ -35,6 +35,8 @@ void resource_load(lua_State *L, resource_t *r);
 
 void resource_refresh(lua_State *L, resource_t *r);
 
+resource_t * resource_clone(resource_t *r);
+
 #define resource_is_free(r) (r->status == RESOURCE_STATUS_FREE)
 
 #define resource_get_owner(r) (r->status == RESOURCE_STATUS_TAKEN ? r->owner : -1)

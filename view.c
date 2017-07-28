@@ -17,6 +17,8 @@ view_t * view_new() {
 
 	INIT_LIST_HEAD(&v->resources);
 
+	v->size = 0;
+
 	v->tlm = NULL;
 
 	return v;
@@ -26,6 +28,8 @@ view_t * view_new_tlm(tlm_t *tlm) {
 	view_t *v = (view_t *) tlm_malloc(tlm, sizeof(view_t));
 
 	INIT_LIST_HEAD(&v->resources);
+
+	v->size = 0;
 
 	v->tlm = tlm;
 
@@ -58,6 +62,8 @@ int view_load(lua_State *L, view_t *v) {
 
 		r->index = n++;
 	}	
+
+	v->size = n;
 
 	return n;
 }
@@ -108,13 +114,10 @@ view_t * view_clone(view_t *v) {
 	_v = view_new_tlm(v->tlm);
 
 	for_each_entry(resource_t, r, &v->resources) {
-		resource_t *_r;
-		_r = resource_new_tlm(v->tlm);
-
-		memcpy(_r, r, sizeof(resource_t));
-		_r->type = tlm_strdup(_r->tlm, r->type);
+		resource_t *_r = resource_clone(r);
 
 		list_add_tail(&_r->_l, &_v->resources);
+		_v->size++;
 	}
 	
 	return _v;
@@ -287,5 +290,37 @@ resource_t * view_get_resource(view_t *v, int index) {
 	}
 
 	return NULL;
+}
+
+void view_add_resource(view_t *v, resource_t *r) {
+	list_add_tail(&r->_l, &v->resources);
+	v->size++;
+}
+
+void view_del_resource(view_t *v, resource_t *r) {
+	list_del(&r->_l);
+	v->size--;
+}
+
+view_t * view_concat(view_t *v, view_t *w) {
+	for_each_entry_safe(resource_t, r, _r, &w->resources) {
+		//view_del_resource(w, r);
+		if (!view_get_resource(v, r->index)) {
+			view_add_resource(v, resource_clone(r));
+		}
+	}
+
+	return v;
+}
+
+view_t * view_cut(view_t *v, view_t *w) {
+	for_each_entry(resource_t, _r, &w->resources) {
+		resource_t *r = view_get_resource(v, _r->index);
+		if (r) {
+			view_del_resource(v, r);
+		}
+	}
+
+	return v;
 }
 

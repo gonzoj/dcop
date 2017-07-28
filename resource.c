@@ -60,3 +60,12 @@ void resource_refresh(lua_State *L, resource_t *r) {
 	lua_pop(L, 2);
 }
 
+resource_t * resource_clone(resource_t *r) {
+	resource_t *_r = resource_new_tlm(r->tlm);
+
+	memcpy(_r, r, sizeof(resource_t));
+	_r->type = tlm_strdup(_r->tlm, r->type);
+
+	return _r;
+}
+
