@@ -25,15 +25,18 @@ struct distrm_agent {
 
 typedef struct distrm_message {
 	enum {
+		/* directory service */
 		DISTRM_REGISTER,
 		DISTRM_LOCATE,
 		DISTRM_INFO,
+		/* distrm agent messages */
 		DISTRM_REQUEST,
 		DISTRM_OFFER,
 		DISTRM_FORWARD,
 		DISTRM_MAKE_OFFER,
 		DISTRM_ACCEPT,
 		DISTRM_REJECT,
+		/* dcop interface */
 		DISTRM_START,
 		DISTRM_END
 	} type;

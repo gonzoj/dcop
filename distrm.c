@@ -172,10 +172,7 @@ static view_t * create_offer(distrm_agent_t *a, distrm_agent_t *c, region_t *reg
 	view_t *cores_giver = view_clone(a->owned_cores);
 
 	double gain_total = INFINITY;
-	int i = 0;
 	while (gain_total > 0) {
-		print("create_offer pass %i\n", i++);
-
 		gain_total = 0;
 
 		view_t *greedy_choice = view_new_tlm(a->agent->tlm);
@@ -184,25 +181,13 @@ static view_t * create_offer(distrm_agent_t *a, distrm_agent_t *c, region_t *reg
 		double base_giver = speedup(a, cores_giver);
 
 		for_each_entry_safe(resource_t, r, __r, &potential_cores->resources) {
-			//view_del_resource(potential_cores, r);
-			//view_add_resource(cores_receiver, r);
-
-			//resource_t  *_r = view_get_resource(cores_giver, r->index);
-			//view_del_resource(cores_giver, _r);
-
 			double gain_receiver = share_giver * speedup_with_core(c, cores_receiver, r) - base_receiver;
 			double loss_giver = base_giver - speedup_without_core(a, cores_giver, r);
 
 			if (gain_receiver - loss_giver > gain_total) {
-				//view_del_resource(cores_receiver, r);
 				view_add_resource(greedy_choice, resource_clone(r));
 
 				gain_total = gain_receiver - loss_giver;
-			} else {
-				//view_del_resource(cores_receiver, r);
-				//view_add_resource(potential_cores, r);
-
-				//view_add_resource(cores_giver, _r);
 			}
 		}
 
@@ -215,7 +200,6 @@ static view_t * create_offer(distrm_agent_t *a, distrm_agent_t *c, region_t *reg
 			view_cut(cores_giver, offered_cores);
 		}
 
-		//view_free(greedy_choice);
 		tlm_free(a->agent->tlm, greedy_choice);
 	}
 
@@ -252,6 +236,7 @@ static bool filter_distrm_offer(message_t *msg, void *unused) {
 	return (distrm_message(msg)->type == DISTRM_OFFER);
 }
 
+/*
 static bool filter_distrm_response(message_t *msg, void *unused) {
 	if (distrm_message(msg)->type == DISTRM_END) {
 		return true;
@@ -259,6 +244,7 @@ static bool filter_distrm_response(message_t *msg, void *unused) {
 
 	return (distrm_message(msg)->type == DISTRM_ACCEPT || distrm_message(msg)->type == DISTRM_REJECT);
 }
+*/
 
 static void handle_make_offer(distrm_agent_t *a, message_t *msg) {
 	message_t *offer = distrm_message_new(a->agent->tlm, DISTRM_OFFER);
@@ -275,6 +261,7 @@ static void handle_make_offer(distrm_agent_t *a, message_t *msg) {
 
 	print("agent %i: sent offer to managing agent %i\n", a->agent->id, msg->from->id);
 
+	/*
 	for (int i = 0; i < size; i++) {
 		message_t *response = agent_recv_filter(a->agent, filter_distrm_response, NULL);
 
@@ -297,6 +284,7 @@ static void handle_make_offer(distrm_agent_t *a, message_t *msg) {
 
 		message_free(response);
 	}
+	*/
 }
 
 static void handle_request(distrm_agent_t *a, message_t *msg) {
@@ -397,18 +385,19 @@ static view_t * request_cores(distrm_agent_t *a) {
 
 		struct list_head *subregions = NULL;
 
-		int n = max_par_reqs;
+		int n = 0;
 
 		for_each_entry(region_t, region, potential_regions) {
 			print("trying region around core %i\n", region->center->index);
 
 			if (region_distance(region, a) > locality_thresh) {
 				send_request(a, region);
+
+				n++;
 			} else {
 				if (region->size > size_thresh) {
 					subregions = region_split(region, size_thresh);
 
-					n = 0;
 					for_each_entry_safe(region_t, subregion, _s, subregions) {
 						send_request(a, subregion);
 
@@ -423,7 +412,7 @@ static view_t * request_cores(distrm_agent_t *a) {
 
 					handle_request_message(a, msg);
 
-					n = 1;
+					n++;
 				}
 			}
 		}
@@ -506,12 +495,16 @@ static void * distrm(void *arg) {
 			case DISTRM_REQUEST: type_string = "DISTRM_REQUEST"; break;
 			case DISTRM_FORWARD: type_string = "DISTRM_FORWARD"; break;
 			case DISTRM_MAKE_OFFER: type_string = "DISTRM_MAKE_OFFER"; break;
+			case DISTRM_ACCEPT: type_string = "DISTRM_ACCEPT"; break;
+			case DISTRM_REJECT: type_string = "DISTRM_REJECT"; break;
 			case DISTRM_START: type_string = "DISTRM_START"; break;
 			case DISTRM_END: type_string = "DISTRM_END"; break;
 			default: type_string = "DISTRM_SOMETHING"; break;
 		}
 
-		print("%i: received %s\n", a->agent->id, type_string);
+		print("%i: received %s (%i)\n", a->agent->id, type_string, distrm_message(msg)->type);
+
+		resource_t *r;
 
 		switch(distrm_message(msg)->type) {
 			case DISTRM_REQUEST:
@@ -524,6 +517,22 @@ static void * distrm(void *arg) {
 
 			case DISTRM_MAKE_OFFER:
 				handle_make_offer(a, msg);
+				break;
+
+			case DISTRM_ACCEPT:
+				print("received accept message\n");
+				r = view_get_resource(a->reserved_cores, distrm_message(msg)->index);
+				view_del_resource(a->reserved_cores, r);
+				print("agent %i: core %i got accepted by agent %i\n", a->agent->id, distrm_message(msg)->core->index, msg->from->id);
+
+				break;
+
+			case DISTRM_REJECT:
+				print("received reject message\n");
+				r = view_get_resource(a->reserved_cores, distrm_message(msg)->index);
+				view_del_resource(a->reserved_cores, r);
+				view_add_resource(a->owned_cores, r);
+				print("agent %i: core %i got rejected by agent %i\n", a->agent->id, distrm_message(msg)->core->index, msg->from->id);
 				break;
 
 			case DISTRM_START:
