@@ -129,7 +129,8 @@ local number_of_resources = problem.hardware.number_of_resources
 
 local resources_taken = 0
 
-local downey_params = {}
+--local downey_params = {}
+downey_params = {}
 
 for _, agent in ipairs(problem.agents) do
 	local n = math.min(math.ceil((number_of_resources * load_percent) / number_of_agents), math.ceil(number_of_resources * load_percent) - resources_taken)

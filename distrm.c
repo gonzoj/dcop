@@ -7,6 +7,8 @@
 #include <string.h>
 #include <time.h>
 
+#include <lua.h>
+
 #include "agent.h"
 #include "algorithm.h"
 #include "cluster.h"
@@ -29,7 +31,7 @@ static int region_size = 2;
 static int region_num = 3;
 static int max_dist = 2;
 static int locality_thresh = 1;
-static int size_thresh = 10;
+static int size_thresh = 5;
 
 static distrm_agent_t *idle_agent = NULL;
 
@@ -611,6 +613,32 @@ static int parse_arguments(int argc, char **argv) {
 	return 0;
 }
 
+static double * distrm_retrieve_downey_params(dcop_t *dcop, int id) {
+	lua_getglobal(dcop->L, "downey_params");
+	if (lua_isnil(dcop->L, -1)) {
+		lua_pop(dcop->L, 1);
+
+		return NULL;
+	}
+
+	lua_pushnumber(dcop->L, id);
+	lua_gettable(dcop->L, -2);
+
+	double *param = malloc(2 * sizeof(double));
+
+	lua_getfield(dcop->L, -1, "A");
+	param[0] = lua_tonumber(dcop->L, -1);
+	lua_pop(dcop->L, 1);
+
+	lua_getfield(dcop->L, -1, "sigma");
+	param[1] = lua_tonumber(dcop->L, -1);
+	lua_pop(dcop->L, 1);
+
+	lua_pop(dcop->L, 2);
+
+	return param;
+}
+
 static void distrm_init(dcop_t *dcop, int argc, char **argv) {
 	parse_arguments(argc, argv);
 
@@ -665,9 +693,18 @@ static void distrm_init(dcop_t *dcop, int argc, char **argv) {
 		initstate_r(seed, statebuf, sizeof(statebuf), &_a->buf);
 		srandom_r(seed, &_a->buf);
 
-		// TODO: we should probably retrieve these parameters from the lua configuration
-		_a->A = 20 + random_d(_a) * 280;
-		_a->sigma = random_d(_a) * 2.5;
+		double *param;
+		if ((param = distrm_retrieve_downey_params(dcop, a->id))) {
+			print("retrieved downey parameters from lua configuration\n");
+
+			_a->A = param[0];
+			_a->sigma = param[1];
+
+			free(param);
+		} else {
+			_a->A = 20 + random_d(_a) * 280;
+			_a->sigma = random_d(_a) * 2.5;
+		}
 
 		for_each_entry(resource_t, r, &a->view->resources) {
 			if (agent_is_owner(a, r)) {
