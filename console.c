@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "console.h"
+#include "dcop.h"
 
 static pthread_mutex_t console_m;
 
@@ -17,6 +18,8 @@ bool debug = false;
 
 static FILE *null = NULL;
 static int _stdout = -1;
+
+bool silent = false;
 
 void console_init() {
 	pthread_mutexattr_t attr;
@@ -39,14 +42,26 @@ void console_cleanup() {
 }
 
 void console_lock() {
+	if (silent && !pthread_equal(main_tid, pthread_self())) {
+		return;
+	}
+
 	pthread_mutex_lock(&console_m);
 }
 
 void console_unlock() {
+	if (silent && !pthread_equal(main_tid, pthread_self())) {
+		return;
+	}
+
 	pthread_mutex_unlock(&console_m);
 }
 
 void console_print(int type, const char *format, ...) {
+	if (silent && !pthread_equal(main_tid, pthread_self())) {
+		return;
+	}
+
 	if (type == CONSOLE_DEBUG && !debug) {
 		return;
 	}
@@ -115,6 +130,10 @@ void console_print(int type, const char *format, ...) {
 }
 
 void console_disable() {
+	if (silent && !pthread_equal(main_tid, pthread_self())) {
+		return;
+	}
+
 	if (!null) {
 		return;
 	}
@@ -132,6 +151,10 @@ void console_disable() {
 }
 
 void console_enable() {
+	if (silent && !pthread_equal(main_tid, pthread_self())) {
+		return;
+	}
+
 	if (_stdout == -1) {
 		return;
 	}

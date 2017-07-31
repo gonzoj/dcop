@@ -3,6 +3,7 @@
 #include <getopt.h>
 #include <pthread.h>
 #include <sched.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,6 +33,8 @@ static LIST_HEAD(algorithms);
 
 bool skip_lua = true;
 
+pthread_t main_tid = 0;
+
 static time_t r_seed = 0;
 static char *r_seedfile = NULL;
 
@@ -41,6 +44,10 @@ static int algorithm_argc = 1;
 static char **algorithm_argv = NULL;
 static int spec_argc = 0;
 static char **spec_argv = NULL;
+
+static algorithm_t *algo = NULL;
+
+static dcop_t *dcop = NULL;
 
 void dcop_register_algorithm(algorithm_t *a) {
 	list_add_tail(&a->_l, &algorithms);
@@ -360,6 +367,9 @@ static void usage() {
 	printf("	--shared , -m\n");
 	printf("		do not use TLM for agents but shared memory instead\n");
 	printf("\n");
+	printf("	--quiet , -q\n");
+	printf("		run algorithm in quiet mode (console is suppressed)\n");
+	printf("\n");
 
 	printf("algorithms:\n");
 	printf("\n");
@@ -382,11 +392,12 @@ static int parse_arguments(int argc, char **argv) {
 		{ "seed", required_argument, NULL, 's' },
 		{ "precise", no_argument, NULL, 'e' },
 		{ "shared", no_argument, NULL, 'm' },
+		{ "quiet", no_argument, NULL, 'q' },
 		{ 0 }
 	};
 
 	while (true) {
-		int result = getopt_long(argc, argv, "ha:l:dp:o:f:s:em", long_options, NULL);
+		int result = getopt_long(argc, argv, "ha:l:dp:o:f:s:emq", long_options, NULL);
 		if (result == -1) {
 			break;
 		}
@@ -440,6 +451,11 @@ static int parse_arguments(int argc, char **argv) {
 				use_tlm = false;
 				break;
 
+			case 'q':
+				printf("running algorithm in quiet mode\n");
+				silent = true;
+				break;
+
 			case '?':
 			case ':':
 			default:
@@ -480,8 +496,14 @@ error:
 	return -1;
 }
 
+void sigint_handler(int signal) {
+	algo->kill(dcop);
+}
+
 int main(int argc, char **argv) {
 	//SimSetInstrumentMode(SIM_OPT_INSTRUMENT_FASTFORWARD);
+
+	main_tid = pthread_self();
 
 	dcop_init_algorithms();
 
@@ -531,7 +553,7 @@ int main(int argc, char **argv) {
 	print("using seed %lX\n", r_seed);
 
 	print("loading dcop specification from '%s'\n", spec);
-	dcop_t *dcop = dcop_load(spec, spec_argc, spec_argv);
+	dcop = dcop_load(spec, spec_argc, spec_argv);
 	if (!dcop) {
 		print_error("failed to load dcop specification\n");
 		status = EXIT_FAILURE;
@@ -547,12 +569,14 @@ int main(int argc, char **argv) {
 	view_dump(dcop->hardware->view);
 	print("\n");
 
-	algorithm_t *algo = dcop_get_algorithm(algorithm);
+	algo = dcop_get_algorithm(algorithm);
 	if (!algo) {
 		print_error("unknown algorithm '%s'\n", algorithm);
 		status = EXIT_FAILURE;
 		goto cleanup;
 	}
+
+	//signal(SIGINT, sigint_handler);
 
 	print("initialize algorithm '%s'\n\n", algo->name);
 	algo->init(dcop, algorithm_argc, algorithm_argv);

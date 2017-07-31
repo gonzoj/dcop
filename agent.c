@@ -372,11 +372,16 @@ void agent_refresh(agent_t *a) {
 }
 
 int agent_create_thread(agent_t *a, void * (*algorithm)(void *), void *arg) {
+	if (a->id >= dcop_get_number_of_cores()) {
+		print_warning("creating more threads than physical cores available (sniper will most likely crash)\n");
+	}
+
 	int r = pthread_create(&a->tid, NULL, algorithm, arg);
 	if (!r) {
 		cpu_set_t cpuset;
 		CPU_ZERO(&cpuset);
 		CPU_SET((a->id) % dcop_get_number_of_cores(), &cpuset);
+		print_debug("pinned agent %i to core %i\n", a->id, (a->id) % dcop_get_number_of_cores());
 		if (pthread_setaffinity_np(a->tid, sizeof(cpu_set_t), &cpuset)) {
 			print_warning("failed to set core affinity for agent %i\n", a->id);
 		}

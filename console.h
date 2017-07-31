@@ -14,6 +14,8 @@ extern char *logfile;
 
 extern bool debug;
 
+extern bool silent;
+
 #define DEBUG if (debug)
 
 void console_init();

@@ -25,6 +25,8 @@ struct dcop {
 
 extern bool skip_lua;
 
+extern pthread_t main_tid;
+
 void dcop_register_algorithm(algorithm_t *a);
 
 struct agent * dcop_get_agent(dcop_t *dcop, int id);

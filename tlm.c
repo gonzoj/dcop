@@ -234,7 +234,7 @@ void * tlm_realloc(tlm_t *tlm, void *p, size_t size) {
 					e->size += diff;
 					e->base = (char *) e->base - diff;
 
-					memmove(e->base, (char *) e->base + diff, diff);
+					memmove(e->base, (char *) e->base + diff, e->size - diff);
 
 					prev->size -= diff;
 

@@ -100,11 +100,16 @@ double prefer_free(constraint_t *c) {
 	return n / 2;
 }
 
-double _downey(int A, double sigma, int n) {
-	double S = 0;
+// TODO: well, what about n == 0 and n == 1?
+double _downey(double A, double sigma, double n) {
+	double S = -1;
+
+	if (n == 1) {
+		S = 0;
+	}
 
 	if (sigma < 1) {
-		if (1 <= n && n <= A) {
+		if (1 < n && n <= A) {
 			S = (n * A) / (A + (sigma / (2 * (n - 1))));
 		} else if (A <= n && n <= 2 * A - 1) {
 			S = (n * A) / (sigma * (A - 1/2) + n * (1 - sigma/2));
@@ -112,7 +117,7 @@ double _downey(int A, double sigma, int n) {
 			S = A;
 		}
 	} else {
-		if (n <= 1 && n <= A + A * sigma - sigma) {
+		if (1 < n && n <= A + A * sigma - sigma) {
 			S = (n * A * (sigma + 1)) / (sigma * (n + A - 1) + A);
 		} else if (n >= A + A * sigma - sigma) {
 			S = A;
@@ -125,9 +130,9 @@ double _downey(int A, double sigma, int n) {
 double downey(constraint_t *c) {
 	agent_t *a = c->param.agent;
 	int b = c->param.neighbors[0];
-	int a_A = c->param.args[0].number;
+	double a_A = c->param.args[0].number;
 	double a_sigma = c->param.args[1].number;
-	int b_A = c->param.args[2].number;
+	double b_A = c->param.args[2].number;
 	double b_sigma = c->param.args[3].number;
 
 	if (!agent_has_conflicting_view(a, b)) {
@@ -146,7 +151,7 @@ double downey(constraint_t *c) {
 
 double speedup(constraint_t *c) {
 	agent_t *a = c->param.agent;
-	int A = c->param.args[0].number;
+	double A = c->param.args[0].number;
 	double sigma = c->param.args[1].number;
 
 	double S = _downey(A, sigma, view_count_resources(a->view, a->id));

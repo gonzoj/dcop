@@ -1,7 +1,7 @@
 #ifndef NATIVE_H_
 #define NATIVE_H_
 
-double _downey(int A, double sigma, int n);
+double _downey(double A, double sigma, double n);
 
 void register_native_constraints();
 
