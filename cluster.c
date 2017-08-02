@@ -176,7 +176,7 @@ view_t * cluster_unload() {
 }
 
 void cluster_stop() {
-	for_each_entry(cluster_t, c, &clusters) {
+	for_each_entry_safe(cluster_t, c, _c, &clusters) {
 		agent_send(NULL, c->directory, distrm_message_new(NULL, DISTRM_END));
 	}
 }

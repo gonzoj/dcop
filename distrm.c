@@ -32,6 +32,9 @@ static int region_num = 3;
 static int max_dist = 2;
 static int locality_thresh = 1;
 static int size_thresh = 5;
+static int max_rounds = 3;
+static int rounds = 0;
+static int ready = 0;
 
 static distrm_agent_t *idle_agent = NULL;
 
@@ -75,7 +78,7 @@ message_t * distrm_message_new(tlm_t *tlm, int type) {
 
 	msg->type = type;
 
-	message_t *m = message_new(tlm, msg, distrm_message_free);
+	message_t *m = message_new(tlm, msg, sizeof(distrm_message_t), distrm_message_free);
 
 	return m;
 }
@@ -90,7 +93,16 @@ static bool distrm_invade(distrm_agent_t *a) {
 
 		invading = true;
 
+		print("%i is invading!\n", a->agent->id);
+	}
+	
+	if (++ready == a->agent->dcop->number_of_agents) {
+		print("all clear\n");
 		pthread_cond_broadcast(&distrm_cv);
+
+		rounds++;
+	} else {
+		pthread_cond_wait(&distrm_cv, &distrm_m);
 	}
 
 	pthread_mutex_unlock(&distrm_m);
@@ -228,10 +240,16 @@ static void send_request(distrm_agent_t *a, region_t *region) {
 	agent_t *handler = cluster_resolve_core(a, region->center);
 
 	agent_send(a->agent, handler, msg);
+
+	print("%i sent REQUEST to %i\n", a->agent->id, handler->id);
 }
 
 static bool filter_distrm_offer(message_t *msg, void *unused) {
 	if (distrm_message(msg)->type == DISTRM_END) {
+		return true;
+	}
+
+	if (distrm_message(msg)->type == DISTRM_MAKE_OFFER) {
 		return true;
 	}
 
@@ -289,6 +307,7 @@ static void handle_make_offer(distrm_agent_t *a, message_t *msg) {
 	*/
 }
 
+// TODO: this shit deadlocks if two agents receive REQUEST/FORWARD and are neighbors of each other...
 static void handle_request(distrm_agent_t *a, message_t *msg) {
 	message_t *response = distrm_message_new(a->agent->tlm, DISTRM_OFFER);
 
@@ -305,17 +324,20 @@ static void handle_request(distrm_agent_t *a, message_t *msg) {
 	for (int i = 0; i < distrm_message(msg)->num_neighbors; i++) {
 		message_t *remote_offer =  agent_recv_filter(a->agent, filter_distrm_offer, NULL);
 
-		view_concat(distrm_message(response)->offer, distrm_message(remote_offer)->offer);
+		if (distrm_message(remote_offer)->type != DISTRM_OFFER) {
+			handle_make_offer(a, remote_offer);
+		} else {
+			view_concat(distrm_message(response)->offer, distrm_message(remote_offer)->offer);
 
-		message_free(remote_offer);
+			message_free(remote_offer);
+		}
 	}
 
 	if (a != distrm_message(msg)->from) {
 		view_concat(distrm_message(response)->offer, create_offer(a, distrm_message(msg)->from, distrm_message(msg)->region));
 	}
 
-	message_free(msg);
-
+	print("sending a response to %i (from %i)\n", distrm_message(msg)->from->agent->id, a->agent->id);
 	agent_send(a->agent, distrm_message(msg)->from->agent, response);
 }
 
@@ -342,7 +364,11 @@ static void handle_request_message(distrm_agent_t *a, message_t *msg) {
 			max = cores[i];
 			handler = distrm_get_agent(a->agent->dcop, i);
 		}
-		if (cores[i] > 0 && i != a->agent->id && (!handler || a == distrm_message(msg)->from || i != handler->id)) {
+	}
+
+	for (int i = 1; i < a->agent->dcop->number_of_agents + 2; i++) {
+		//if (cores[i] > 0 && i != a->agent->id && (!handler || a == distrm_message(msg)->from || i != handler->id)) {
+		if (cores[i] > 0 && i != distrm_message(msg)->from->agent->id && (!handler || i != handler->id)) {
 			distrm_message(forward)->num_neighbors++;
 			distrm_message(forward)->neighbors = tlm_realloc(a->agent->tlm, distrm_message(forward)->neighbors, distrm_message(forward)->num_neighbors * sizeof(agent_t *));
 			distrm_message(forward)->neighbors[distrm_message(forward)->num_neighbors - 1] = distrm_get_agent(a->agent->dcop, i);
@@ -351,15 +377,19 @@ static void handle_request_message(distrm_agent_t *a, message_t *msg) {
 
 	tlm_free(a->agent->tlm, cores);
 
-	if (handler != a->agent && a != distrm_message(msg)->from) {
+	if (handler != a->agent && a != distrm_message(msg)->from && handler != distrm_message(msg)->from->agent) {
+		print("%i: forwarding message to handler %i\n", a->agent->id, handler->id);
 		agent_send(a->agent, handler, forward);
 	} else {
 		handle_request(a, forward);
+
+		message_free(forward);
 	}
 }
 
 #define min(x, y) (x < y ? x : y)
 
+// TODO: deadlock if agent that is using request_cores (and waits for n offers is owning most cores in the selected region (and gets FORWARD message or REQUEST if region is far)
 static view_t * request_cores(distrm_agent_t *a) {
 	if (!a->core) {
 		a->core = distrm_get_random_core(a);
@@ -393,7 +423,15 @@ static view_t * request_cores(distrm_agent_t *a) {
 			print("trying region around core %i\n", region->center->index);
 
 			if (region_distance(region, a) > locality_thresh) {
-				send_request(a, region);
+				if (cluster_resolve_core(a, region->center)->id != a->agent->id) {
+					send_request(a, region);
+				} else {
+					message_t *msg = distrm_message_new(a->agent->tlm, DISTRM_REQUEST);
+					distrm_message(msg)->region = region;
+					distrm_message(msg)->from = a;
+
+					handle_request_message(a, msg);
+				}
 
 				n++;
 			} else {
@@ -401,7 +439,15 @@ static view_t * request_cores(distrm_agent_t *a) {
 					subregions = region_split(region, size_thresh);
 
 					for_each_entry_safe(region_t, subregion, _s, subregions) {
-						send_request(a, subregion);
+						if (cluster_resolve_core(a, subregion->center)->id != a->agent->id) {
+							send_request(a, subregion);
+						} else {
+							message_t *msg = distrm_message_new(a->agent->tlm, DISTRM_REQUEST);
+							distrm_message(msg)->region = subregion;
+							distrm_message(msg)->from = a;
+
+							handle_request_message(a, msg);
+						}
 
 						n++;
 					}
@@ -422,7 +468,7 @@ static view_t * request_cores(distrm_agent_t *a) {
 		for (int i = 0; i < n; i++) {
 			message_t *offer = agent_recv_filter(a->agent, filter_distrm_offer, NULL);
 
-			print("received offer from agent %i\n", offer->from->id);
+			print("(%i of %i) %i: received offer from agent %i\n", i + 1, n, a->agent->id, offer->from->id);
 
 			view_concat(offers, distrm_message(offer)->offer);
 
@@ -484,12 +530,16 @@ static void distrm_kill(dcop_t *);
 static void * distrm(void *arg) {
 	distrm_agent_t *a = (distrm_agent_t *) arg;
 
+	a->rounds = 0;
+
 	if (!distrm_is_idle_agent(a->agent->id)) {
 		dcop_start_ROI(a->agent->dcop);
 	}
 
 	bool stop = false;
 	while (!stop) {
+		print("%i: waiting for messages...\n", a->agent->id);
+
 		message_t *msg = agent_recv(a->agent);
 
 		const char *type_string;
@@ -538,12 +588,36 @@ static void * distrm(void *arg) {
 				break;
 
 			case DISTRM_START:
-				if (a->owned_cores->size == 0 && !distrm_is_idle_agent(a->agent->id)) {
+				//if (a->owned_cores->size == 0 && !distrm_is_idle_agent(a->agent->id)) {
+				if (rounds < max_rounds && !distrm_is_idle_agent(a->agent->id)) {
+					print("trying to invade (%i)\n", a->agent->id);
 					if (distrm_invade(a)) {
+						print("oh yeah\n");
 						view_t *offer = request_cores(a);
 						handle_offer(a, offer);
-						distrm_kill(a->agent->dcop);
+
+						a->rounds++;
+
+						invading_agent = NULL;
+
+						ready = 0;
+
+						print("\n\nNEXT ROUND BABY (%i)\n\n", a->agent->id);
+
+						if (rounds < max_rounds) {
+							agent_broadcast(a->agent, a->agent->dcop, distrm_message_new(a->agent->tlm, DISTRM_START));
+							//agent_send(a->agent, idle_agent->agent, distrm_message_new(a->agent->tlm, DISTRM_START));
+						} else {
+							agent_broadcast(a->agent, a->agent->dcop, distrm_message_new(a->agent->tlm, DISTRM_END));
+							agent_send(a->agent, idle_agent->agent, distrm_message_new(a->agent->tlm, DISTRM_END));
+
+							cluster_stop();
+
+							stop = true;
+						}
+						//distrm_kill(a->agent->dcop);
 					}
+					print("did we? (%i)\n", a->agent->id);
 				}
 				break;
 
@@ -676,6 +750,8 @@ static void distrm_init(dcop_t *dcop, int argc, char **argv) {
 		}
 	}
 
+	idle_agent->stale = true;
+
 	agent_create_thread(agent, distrm, idle_agent);
 
 	print("created idle thread\n");
@@ -714,6 +790,8 @@ static void distrm_init(dcop_t *dcop, int argc, char **argv) {
 			}
 		}
 
+		_a->stale = false;
+
 		agent_create_thread(a, distrm, _a);
 
 		print("agent %i: A %lf sigma %lf\n", a->id, _a->A, _a->sigma);
@@ -746,17 +824,13 @@ static void distrm_cleanup(dcop_t *dcop) {
 }
 
 static void distrm_run(dcop_t *dcop) {
-	for_each_entry(agent_t, a, &dcop->agents) {
-		agent_send(NULL, a, distrm_message_new(NULL, DISTRM_START));
-	}
+	agent_broadcast(NULL, dcop, distrm_message_new(NULL, DISTRM_START));
 
-	agent_send(NULL, idle_agent->agent, distrm_message_new(NULL, DISTRM_START));
+	//agent_send(NULL, idle_agent->agent, distrm_message_new(NULL, DISTRM_START));
 }
 
 static void distrm_kill(dcop_t *dcop) {
-	for_each_entry(agent_t, a, &dcop->agents) {
-		agent_send(NULL, a, distrm_message_new(NULL, DISTRM_END));
-	}
+	agent_broadcast(NULL, dcop, distrm_message_new(NULL, DISTRM_END));
 
 	agent_send(NULL, idle_agent->agent, distrm_message_new(NULL, DISTRM_END));
 

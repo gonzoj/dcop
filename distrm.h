@@ -21,6 +21,8 @@ struct distrm_agent {
 	double sigma;
 	view_t *owned_cores;
 	view_t *reserved_cores;
+	bool stale;
+	int rounds;
 };
 
 typedef struct distrm_message {

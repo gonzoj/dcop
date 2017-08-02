@@ -118,10 +118,11 @@ neighbor_t * neighbor_new(tlm_t *tlm, agent_t *a) {
 	return n;
 }
 
-message_t * message_new(tlm_t *tlm, void *buf, void (*free)(tlm_t *, void *)) {
+message_t * message_new(tlm_t *tlm, void *buf, size_t size, void (*free)(tlm_t *, void *)) {
 	message_t *msg = (message_t *) tlm_malloc(tlm, sizeof(message_t));
 
 	msg->buf = buf;
+	msg->size = size;
 	msg->free = free;
 
 	msg->tlm = tlm;
@@ -313,6 +314,19 @@ void agent_send(agent_t *s, agent_t *r, message_t *msg) {
 	pthread_cond_signal(&r->cv);
 
 	pthread_mutex_unlock(&r->mt);
+}
+
+void agent_broadcast(agent_t *s, dcop_t *dcop, message_t *msg) {
+	for_each_entry(agent_t, r, &dcop->agents) {
+		void *buf = tlm_malloc(msg->tlm, msg->size);
+		memcpy(buf, msg->buf, msg->size);
+
+		message_t *m = message_new(msg->tlm, buf, msg->size, msg->free);
+
+		agent_send(s, r, m);
+	}
+
+	message_free(msg);
 }
 
 message_t * agent_recv(agent_t *r) {

@@ -92,9 +92,9 @@ static message_t * mgm_message_new(mgm_agent_t *a, int type) {
 
 	message_t *m;
 	if (a) {
-		m = message_new(a->agent->tlm, msg, mgm_message_free);
+		m = message_new(a->agent->tlm, msg, sizeof(mgm_message_t), mgm_message_free);
 	} else {
-		m = message_new(NULL, msg, mgm_message_free);
+		m = message_new(NULL, msg, sizeof(mgm_message_t), mgm_message_free);
 	}
 
 	return m;

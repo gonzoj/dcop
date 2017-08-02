@@ -12,6 +12,7 @@ tlm_t * tlm_create(size_t kbytes) {
 	tlm_t *tlm = malloc(sizeof(tlm_t));
 	tlm->size = kbytes * 1024;
 	posix_memalign(&tlm->base, sysconf(_SC_PAGE_SIZE), tlm->size + sizeof(tlm_entry_t) * MAX_ENTRIES);
+	//tlm->base = malloc(tlm->size + sizeof(tlm_entry_t) * MAX_ENTRIES);
 	memset(tlm->base, 0, tlm->size + sizeof(tlm_entry_t) * MAX_ENTRIES);
 	tlm->buf = tlm->base;
 

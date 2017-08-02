@@ -41,6 +41,7 @@ typedef struct message {
 	struct list_head _l;
 	agent_t *from;
 	void *buf;
+	size_t size;
 	void (*free)(tlm_t *, void *);
 	tlm_t *tlm;
 } message_t;
@@ -55,7 +56,7 @@ neighbor_t * neighbor_new(tlm_t *tlm, agent_t *a);
 
 #define neighbor_free(n) tlm_free(n->tlm, n)
 
-message_t * message_new(tlm_t *tlm, void *buf, void (*free)(tlm_t *, void *));
+message_t * message_new(tlm_t *tlm, void *buf, size_t size, void (*free)(tlm_t *, void *));
 
 #define message_free(msg) do { msg->free(msg->tlm, msg->buf); tlm_free(msg->tlm, msg); } while (0)
 
@@ -76,6 +77,8 @@ double agent_evaluate(agent_t *a);
 double agent_evaluate_view(agent_t *a, view_t *v);
 
 void agent_send(agent_t *s, agent_t *r, message_t *msg);
+
+void agent_broadcast(agent_t *s, dcop_t *dcop, message_t *msg);
 
 message_t * agent_recv(agent_t *r);
 
