@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -11,6 +12,9 @@
 #include "view.h"
 
 static LIST_HEAD(clusters);
+
+static pthread_mutex_t cluster_m;
+static bool shutdown = false;
 
 static bool cluster_contains(cluster_t *c, resource_t *r) {
 	return (view_get_resource(c->view, r->index) != NULL);
@@ -65,6 +69,8 @@ void cluster_register_core(distrm_agent_t *a, resource_t *r) {
 static void * directory_service(void *arg) {
 	cluster_t *c = (cluster_t *) arg;
 
+	tlm_touch(c->directory->tlm);
+
 	bool stop = false;
 	while (!stop) {
 		message_t *msg = agent_recv(c->directory);
@@ -76,13 +82,16 @@ static void * directory_service(void *arg) {
 				r = view_get_resource(c->view, distrm_message(msg)->core->index);
 				agent_claim_resource(distrm_message(msg)->agent, r);
 
-				print("directory %i: received register message (agent %i: core %i)\n", c->id, msg->from->id, r->index);
+				//print("directory %i: received register message (agent %i: core %i)\n", c->id, msg->from->id, r->index);
+
+				resource_free(distrm_message(msg)->core);
+
 				break;
 
 			case DISTRM_LOCATE:
 				r = view_get_resource(c->view, distrm_message(msg)->core->index);
 
-				print("directory %i: received locate message (agent %i: core %i)\n", c->id, msg->from->id, r->index);
+				//print("directory %i: received locate message (agent %i: core %i)\n", c->id, msg->from->id, r->index);
 
 				agent_t *agent = distrm_get_agent(c->directory->dcop, r->owner);
 
@@ -146,6 +155,10 @@ int cluster_load(dcop_t *dcop, int size) {
 		c->size++;
 	}
 
+	pthread_mutex_init(&cluster_m, NULL);
+
+	shutdown = false;
+
 	return n;
 }
 
@@ -172,12 +185,26 @@ view_t * cluster_unload() {
 		agent_free(c->directory);
 	}
 
+	pthread_mutex_destroy(&cluster_m);
+
 	return system;
 }
 
 void cluster_stop() {
+	pthread_mutex_lock(&cluster_m);
+
+	if (shutdown) {
+		pthread_mutex_unlock(&cluster_m);
+
+		return;
+	}
+
+	shutdown = true;
+
 	for_each_entry_safe(cluster_t, c, _c, &clusters) {
 		agent_send(NULL, c->directory, distrm_message_new(NULL, DISTRM_END));
 	}
+
+	pthread_mutex_unlock(&cluster_m);
 }
 

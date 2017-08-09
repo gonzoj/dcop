@@ -9,15 +9,28 @@
 double tile(constraint_t *c) {
 	agent_t *a = c->param.agent;
 
-	int tile = -1;
-	for_each_entry(resource_t, r, &a->view->resources) {
-		if (agent_is_owner(a, r)) {
-			if (tile == -1) {
-				tile = r->tile;
-			} else if (tile != r->tile) {
+	for (int i = 0; i < a->dcop->hardware->number_of_tiles; i++) {
+		resource_t *r = view_get_tile(a->view, i, NULL);
+
+		bool claimed = false;
+		bool foreign = false;
+		do {
+			if (agent_is_owner(a, r)) {
+				claimed = true;
+			} else if (!resource_is_free(r)) {
+				foreign = true;
+			}
+
+			if (claimed && foreign) {
 				return INFINITY;
 			}
-		}
+
+			if (r->_l.next == &a->view->resources) {
+				break;
+			} else {
+				r = list_entry(r->_l.next, resource_t, _l);
+			}
+		} while (r->tile == i);
 	}
 
 	return 0;
@@ -38,10 +51,15 @@ double nec_re(constraint_t *c) {
 
 	if (i >= n && i <= m) {
 		return 0;
+	/*
 	} else if (i < n) {
 		return n - i;
 	} else {
 		return i - m;
+	}
+	*/
+	} else {
+		return INFINITY;
 	}
 }
 
@@ -61,10 +79,15 @@ double type(constraint_t *c) {
 
 	if (i >= n && i <= m) {
 		return 0;
+	/*
 	} else if (i < n) {
 		return n - i;
 	} else {
 		return i - m;
+	}
+	*/
+	} else {
+		return INFINITY;
 	}
 }
 

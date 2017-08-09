@@ -6,13 +6,12 @@
 #include "list.h"
 #include "tlm.h"
 
-#define MAX_ENTRIES 1024
+#define MAX_ENTRIES 8192
 
 tlm_t * tlm_create(size_t kbytes) {
 	tlm_t *tlm = malloc(sizeof(tlm_t));
 	tlm->size = kbytes * 1024;
 	posix_memalign(&tlm->base, sysconf(_SC_PAGE_SIZE), tlm->size + sizeof(tlm_entry_t) * MAX_ENTRIES);
-	//tlm->base = malloc(tlm->size + sizeof(tlm_entry_t) * MAX_ENTRIES);
 	memset(tlm->base, 0, tlm->size + sizeof(tlm_entry_t) * MAX_ENTRIES);
 	tlm->buf = tlm->base;
 
@@ -35,6 +34,10 @@ tlm_t * tlm_create(size_t kbytes) {
 void * tlm_malloc(tlm_t *tlm, size_t size) {
 	if (!tlm) {
 		return calloc(1, size);
+	}
+
+	if (size % 8) {
+		size = ((size / 8) + 1) * 8;
 	}
 
 	if (tlm->size < size) {
@@ -83,6 +86,8 @@ void * tlm_malloc(tlm_t *tlm, size_t size) {
 
 			pthread_mutex_unlock(&tlm->m);
 
+			memset(entry->base, 0, size);
+
 			return entry->base;
 		}
 	}
@@ -91,6 +96,26 @@ void * tlm_malloc(tlm_t *tlm, size_t size) {
 
 	print_error("tlm: failed to allocate memory (%i bytes)\n", size);
 	print_error("tlm: memory currently used: %u KB\n", tlm->cur_used / 1024);
+
+	return NULL;
+}
+
+static tlm_entry_t * tlm_prev(tlm_t *tlm, tlm_entry_t *e) {
+	for_each_entry(tlm_entry_t, _e, &tlm->entries) {
+		if ((char *) _e->base + _e->size == (char *) e->base) {
+			return _e;
+		}
+	}
+
+	return NULL;
+}
+
+static tlm_entry_t * tlm_next(tlm_t *tlm, tlm_entry_t *e) {
+	for_each_entry(tlm_entry_t, _e, &tlm->entries) {
+		if ((char *) _e->base == (char *) e->base + e->size) {
+			return _e;
+		}
+	}
 
 	return NULL;
 }
@@ -105,16 +130,15 @@ void tlm_free(tlm_t *tlm, void *p) {
 	pthread_mutex_lock(&tlm->m);
 
 	for_each_entry(tlm_entry_t, e, &tlm->entries) {
-		if (e->base == p) {
+		if (!e->free && e->base == p) {
 			tlm->cur_used -= e->size;
 
 			e->free = true;
 
-			tlm_entry_t *prev = list_entry(e->_l.prev, tlm_entry_t, _l);
-			tlm_entry_t *next = list_entry(e->_l.next, tlm_entry_t, _l);
+			tlm_entry_t *prev = tlm_prev(tlm, e);
+			tlm_entry_t *next = tlm_next(tlm, e);
 
-
-			if (prev->free) {
+			if (prev && prev->free) {
 				e->base = prev->base;
 				e->size += prev->size;
 
@@ -122,7 +146,7 @@ void tlm_free(tlm_t *tlm, void *p) {
 				list_del(&prev->_l);
 			}
 
-			if (next->free) {
+			if (next && next->free) {
 				e->size += next->size;
 
 				next->base = NULL;
@@ -228,10 +252,11 @@ void * tlm_realloc(tlm_t *tlm, void *p, size_t size) {
 					tlm->max_used = tlm->cur_used;
 				}
 
-				tlm_entry_t *prev = list_entry(e->_l.prev, tlm_entry_t, _l);
-				tlm_entry_t *next = list_entry(e->_l.next, tlm_entry_t, _l);
+				tlm_entry_t *prev = tlm_prev(tlm, e);
+				tlm_entry_t *next = tlm_next(tlm, e);
 
-				if (prev->free && prev->size >= diff) {
+
+				if (prev && prev->free && prev->size >= diff) {
 					e->size += diff;
 					e->base = (char *) e->base - diff;
 
@@ -247,7 +272,7 @@ void * tlm_realloc(tlm_t *tlm, void *p, size_t size) {
 					pthread_mutex_unlock(&tlm->m);
 
 					return e->base;
-				} else if (next->free && next->size >= diff) {
+				} else if (next && next->free && next->size >= diff) {
 					e->size += diff;
 
 					next->base = (char *) next->base + diff;

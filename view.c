@@ -318,6 +318,9 @@ view_t * view_cut(view_t *v, view_t *w) {
 		resource_t *r = view_get_resource(v, _r->index);
 		if (r) {
 			view_del_resource(v, r);
+			if (r != _r) {
+				resource_free(r);
+			}
 		}
 	}
 

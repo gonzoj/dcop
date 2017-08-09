@@ -64,6 +64,8 @@ region_t * region_new(distrm_agent_t *a, int size) {
 void region_free(region_t *region) {
 	view_free(region->view);
 
+	resource_free(region->center);
+
 	tlm_free(region->tlm, region);
 }
 
@@ -98,7 +100,7 @@ struct list_head * region_split(region_t *region, int size) {
 		subregion->view = view_new_tlm(region->tlm);
 
 		int j = 0;
-		for_each_entry(resource_t, r, &region->view->resources) {
+		for_each_entry_safe(resource_t, r, _r, &region->view->resources) {
 			view_del_resource(region->view, r);
 			view_add_resource(subregion->view, r);
 

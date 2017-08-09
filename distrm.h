@@ -23,6 +23,7 @@ struct distrm_agent {
 	view_t *reserved_cores;
 	bool stale;
 	int rounds;
+	bool was_invading;
 };
 
 typedef struct distrm_message {
@@ -39,7 +40,7 @@ typedef struct distrm_message {
 		DISTRM_ACCEPT,
 		DISTRM_REJECT,
 		/* dcop interface */
-		DISTRM_START,
+		DISTRM_INVADE,
 		DISTRM_END
 	} type;
 	/*
