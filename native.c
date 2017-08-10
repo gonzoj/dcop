@@ -9,8 +9,12 @@
 double tile(constraint_t *c) {
 	agent_t *a = c->param.agent;
 
-	for (int i = 0; i < a->dcop->hardware->number_of_tiles; i++) {
+	for (int i = 1; i <= a->dcop->hardware->number_of_tiles; i++) {
 		resource_t *r = view_get_tile(a->view, i, NULL);
+
+		if (!r) {
+			continue;
+		}
 
 		bool claimed = false;
 		bool foreign = false;

@@ -169,6 +169,28 @@ for _, agent in ipairs(problem.agents) do
 
 	agent:add_constraint(constraint.create("NEC_RE", { n, n }))
 
+	same_tile = true
+
+	for i = 1, problem.hardware.number_of_tiles do
+		local tile = problem.hardware:get_tile(i)
+
+		local claimed = false
+		local foreign = false
+
+		for _, resource in ipairs(tile) do
+			if resource:is_owner(agent.id) then
+				claimed = true
+			elseif not resource:is_free() then
+				foreign = true
+			end
+
+			if claimed and foreign then
+				same_tile = false
+			end
+
+		end
+	end
+
 	if same_tile then
 		agent:add_constraint(constraint.create("TILE"))
 	end
