@@ -80,6 +80,8 @@ local function usage()
 	print("		allow agents to yield their occupied resources [true, false]")
 	print("	-i FILE")
 	print("		lua script returing the invading agent's object")
+	print("	-m MAX")
+	print("		maximum number of resources per a-priori agent")
 	print("")
 end
 
@@ -88,6 +90,7 @@ local number_of_tiles = 3
 local load_percent = 0.80
 local can_yield = true
 local init_invader
+local max_per_agent = math.huge
 
 local function parse_arguments(arg)
 	for opt, arg in getopt("a:t:l:y:i:uh", unpack(arg)) do
@@ -101,6 +104,8 @@ local function parse_arguments(arg)
 			can_yield = toboolean(arg)
 		elseif opt == "i" then
 			init_invader = arg
+		elseif opt == "m" then
+			max_per_agent = tonumber(arg)
 		elseif opt == "u" or "h" then
 			usage()
 		else
@@ -123,13 +128,22 @@ local tile = {
 	"STREAM"
 }
 
-local problem = dcop.new(dcop.hardware.new({ { "REGULAR", "RECONFIG" } },  number_of_tiles), number_of_agents)
+--local problem = dcop.new(dcop.hardware.new({ { "REGULAR", "RECONFIG" } },  number_of_tiles), number_of_agents)
+local problem = dcop.new(dcop.hardware.new({ tile },  number_of_tiles), number_of_agents)
 
 local number_of_resources = problem.hardware.number_of_resources
 
+if math.ceil(number_of_resources * load_percent) > max_per_agent * number_of_agents then
+	local prior = number_of_agents
+	number_of_agents = math.ceil(math.ceil(number_of_resources * load_percent) / max_per_agent)
+
+	print("warning: adjusted number of agents from " .. prior .. " to " .. number_of_agents)
+
+	problem = dcop.new(dcop.hardware.nwe( { tile }, number_of_tiles), number_of_agents)
+end
+
 local resources_taken = 0
 
---local downey_params = {}
 downey_params = {}
 
 for _, agent in ipairs(problem.agents) do

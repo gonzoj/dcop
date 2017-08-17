@@ -162,14 +162,17 @@ double downey(constraint_t *c) {
 	double b_A = c->param.args[2].number;
 	double b_sigma = c->param.args[3].number;
 
-	if (!agent_has_conflicting_view(a, b)) {
+	int conflicts;
+	if ((conflicts = agent_has_conflicting_view(a, b)) == 0) {
 		return 0;
 	}
 
-	double d_A = _downey(a_A, a_sigma, view_count_resources(a->view, a->id));
-	double d_B = _downey(b_A, b_sigma, view_count_resources(a->agent_view[b], b));
+	//double d_A = _downey(a_A, a_sigma, view_count_resources(a->view, a->id));
+	//double d_B = _downey(b_A, b_sigma, view_count_resources(a->agent_view[b], b));
+	double s_A = _downey(a_A, a_sigma, view_count_resources(a->view, a->id)) - _downey(a_A, a_sigma, view_count_resources(a->view, a->id) - conflicts);
+	double s_B = abs(_downey(b_A, b_sigma, view_count_resources(a->agent_view[b], b) - conflicts) - _downey(b_A, b_sigma, view_count_resources(a->agent_view[b], b)));
 
-	if (d_A > d_B) {
+	if (s_A > s_B) {
 		return 0;
 	} else {
 		return INFINITY;

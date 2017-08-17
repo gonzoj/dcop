@@ -421,15 +421,17 @@ void agent_dump_view(agent_t *a) {
 	}
 }
 
-bool agent_has_conflicting_view(agent_t *a, int id) {
+int agent_has_conflicting_view(agent_t *a, int id) {
+	int n = 0;
+
 	for_each_entry(resource_t, r, &a->view->resources) {
 		resource_t *_r = view_get_resource(a->agent_view[id], r->index);
 
 		if (_r && agent_is_owner(a, r) && resource_get_owner(_r) == id) {
-			return true;
+			n++;
 		}
 	}
 
-	return false;
+	return n;
 }
 

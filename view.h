@@ -12,6 +12,7 @@ typedef struct view view_t;
 #include "tlm.h"
 
 struct view {
+	struct list_head _l;
 	struct list_head resources;
 	int size;
 	tlm_t *tlm;
