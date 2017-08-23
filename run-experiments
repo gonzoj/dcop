@@ -1,0 +1,4 @@
+#!/bin/sh
+
+lua lua/experiments.lua
+

@@ -54,7 +54,7 @@ typedef enum {
 static algorithm_t _mgm;
 
 static int max_distance = 200;
-static int max_tiles = 1;
+static int max_tiles = 2;
 
 static bool consistent = true;
 
@@ -133,7 +133,17 @@ static int send_ok(mgm_agent_t *a) {
 }
 
 static double get_improvement(mgm_agent_t *a, double *eval) {
-	double _eval = agent_evaluate_view(a->agent, a->new_view);
+	double _eval;
+	if (a->new_view->size == a->agent->view->size) {
+		_eval = agent_evaluate_view(a->agent, a->new_view);
+	} else {
+		view_t *view = view_clone(a->agent->view);
+		view_update(view, a->new_view);
+
+		_eval = agent_evaluate_view(a->agent, view);
+
+		view_free(view);
+	}
 
 	double improve;
 	if (!isfinite(_eval) && (eval ? !isfinite(*eval) : !isfinite(a->eval))) {
@@ -152,7 +162,7 @@ static double get_improvement(mgm_agent_t *a, double *eval) {
 
 static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t **new_view, double *new_eval) {
 	// IMPROVEMENT: stop when optimal utility is acquired
-	if (new_eval != &a->best_eval && *new_eval == a->best_eval) {
+	if (a->best_eval >= 0 && new_eval != &a->best_eval && *new_eval == a->best_eval) { // TODO: urgh...
 		return true;
 	}
 
@@ -177,7 +187,7 @@ static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 
 			a->improve += improve;
 
-			if (new_eval != &a->best_eval && *new_eval == a->best_eval) {
+			if (a->best_eval >= 0 && new_eval != &a->best_eval && *new_eval == a->best_eval) {
 				DEBUG_MESSAGE(a, "found assignment with optimal utility\n");
 				return true;
 			}
@@ -186,7 +196,7 @@ static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 				DEBUG_MESSAGE(a, "utility 0 is optimal\n");
 				return true;
 			}
-		} else if (improve == 0 && new_eval == &a->best_eval && view_count_resources(*new_view, a->agent->id) < view_count_resources(a->new_view, a->agent->id)) {
+		} else if (improve == 0 && (a->best_eval < 0 || new_eval == &a->best_eval) && view_count_resources(*new_view, a->agent->id) < view_count_resources(a->new_view, a->agent->id)) {
 			view_copy(*new_view, a->new_view);
 		}
 		return false;
@@ -248,10 +258,10 @@ static struct list_head * split(mgm_agent_t *a, int max_tiles) {
 	struct list_head *regions = tlm_malloc(a->agent->tlm, sizeof(struct list_head));
 	INIT_LIST_HEAD(regions);
 
-	for (int i = 0; i < a->agent->dcop->hardware->number_of_tiles; i += max_tiles) {
+	for (int i = 1; i <= a->agent->dcop->hardware->number_of_tiles; i += max_tiles) {
 		view_t *subview = view_new_tlm(a->agent->tlm);
 
-		for (int j = 0; j < min(max_tiles, a->agent->dcop->hardware->number_of_tiles - i); j++) {
+		for (int j = 0; j < min(max_tiles, a->agent->dcop->hardware->number_of_tiles - i + 1); j++) {
 			resource_t *r = view_get_tile(a->new_view, i + j, NULL);
 
 			if (!r) {
@@ -266,7 +276,7 @@ static struct list_head * split(mgm_agent_t *a, int max_tiles) {
 				} else {
 					r = list_entry(r->_l.next, resource_t, _l);
 				}
-			} while (r->tile == i);
+			} while (r->tile == i + j);
 		}
 
 		list_add_tail(&subview->_l, regions);
@@ -276,6 +286,8 @@ static struct list_head * split(mgm_agent_t *a, int max_tiles) {
 }
 
 static void try_subregions(mgm_agent_t *a) {
+	a->improve = 0;
+
 	view_copy(a->new_view, a->agent->view);
 
 	struct list_head *regions = split(a, max_tiles);
@@ -285,28 +297,40 @@ static void try_subregions(mgm_agent_t *a) {
 	double improve = 0;
 	view_t *view = NULL;
 
-	for_each_entry(view_t, v, regions) {
-		a->improve = 0;
+	bool result = false;
 
-		a->new_view = v;
+	for_each_entry_safe(view_t, v, _v, regions) {
+		if (!result) {
+			a->improve = 0;
 
-		view_t *new_view = view_clone(a->new_view);
-		double new_eval = a->eval;
+			a->new_view = v;
 
-		int pos = a->agent->dcop->hardware->number_of_resources - v->size;
+			view_t *new_view = view_clone(a->new_view);
+			double new_eval = a->eval;
 
-		permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), pos, &new_view, &new_eval);
+			int pos = a->agent->dcop->hardware->number_of_resources - v->size;
 
-		if (a->improve > improve) {
-			improve = a->improve;
+			result = permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), pos, &new_view, &new_eval);
 
-			if (view) {
-				view_free(view);
+			if (a->improve > improve) {
+				improve = a->improve;
+
+				if (view) {
+					view_free(view);
+				}
+				view = new_view;
+			} else {
+				view_free(new_view);
 			}
-			view = new_view;
-		} else {
-			view_free(v);
+
+			// TODO: hack...
+			if (a->best_eval < 0) {
+				result = true;
+			}
 		}
+
+		list_del(&v->_l);
+		view_free(v);
 	}
 
 	a->new_view = _view;
@@ -322,6 +346,7 @@ static void try_subregions(mgm_agent_t *a) {
 	}
 }
 
+/*
 static void find_assignment(mgm_agent_t *a) {
 	DEBUG_MESSAGE(a, "trying to find new assignment\n");
 
@@ -337,7 +362,9 @@ static void find_assignment(mgm_agent_t *a) {
 
 	view_free(new_view);
 }
+*/
 
+// TODO: potentially slow if lots of resources are free
 static bool try_free_resources(mgm_agent_t *a) {
 	a->improve = 0;
 
@@ -350,14 +377,23 @@ static bool try_free_resources(mgm_agent_t *a) {
 	view_t *free_list = view_clone(a->new_view);
 	for_each_entry_safe(resource_t, r, _r, &free_list->resources) {
 		if (!resource_is_free(r) && !agent_is_owner(a->agent, r)) {
-			list_del(&r->_l);
+			view_del_resource(free_list, r);
 			resource_free(r);
 
 			pos++;
 		}
 	}
 
+	// TODO: it would be better to split the free resources and handle that similar to try_subregions... oh well
+	if (free_list->size > (a->agent->dcop->hardware->number_of_resources / a->agent->dcop->hardware->number_of_tiles) * max_tiles) {
+		view_free(free_list);
+
+		return false;
+	}
+
 	if (pos == a->agent->dcop->hardware->number_of_resources) {
+		view_free(free_list);
+
 		return false;
 	}
 
@@ -373,9 +409,9 @@ static bool try_free_resources(mgm_agent_t *a) {
 		view_update(a->new_view, new_view);
 
 		// necessary because some constraints depend on more information than available through a free list (e.g. TILE)
-		if (get_improvement(a, NULL) == 0) {
+		/*if (get_improvement(a, NULL) == 0) {
 			result = false;
-		}
+		}*/
 	}
 
 	view_free(new_view);
@@ -451,6 +487,48 @@ static bool filter_mgm_message(message_t *msg, void *mode) {
 	}
 }
 
+// TODO: actually, we only have to consider a region of max_tiles
+static void get_optimal_utility(mgm_agent_t *a) {
+	for_each_entry(resource_t, r, &a->new_view->resources) {
+		r->status = RESOURCE_STATUS_FREE;
+	}
+	a->best_eval = agent_evaluate_view(a->agent, a->new_view);
+	a->max_resources = -1;
+
+	//view_t *best_view = view_clone(a->new_view);
+
+	//permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), 0, &best_view, &a->best_eval);
+	//a->best_eval = 0;
+
+	a->eval = a->best_eval;
+
+	view_t *_view = a->agent->view;
+	a->agent->view = a->new_view;
+
+	a->best_eval = -1;
+
+	try_subregions(a);
+
+	a->best_eval = a->eval;
+
+	a->eval = 0;
+
+	a->agent->view = _view;
+
+	if (a->improve > 0) {
+		a->best_eval = agent_evaluate_view(a->agent, a->new_view);
+	}
+
+	a->improve = 0;
+
+	DEBUG_MESSAGE(a, "optimal utility: %f\n", a->best_eval);
+
+	a->max_resources = view_count_resources(a->new_view, a->agent->id);
+	DEBUG_MESSAGE(a, "with %i resources\n", a->max_resources);
+
+	//view_free(best_view);
+}
+
 static void * mgm(void *arg) {
 	mgm_agent_t *a = (mgm_agent_t *) arg;
 
@@ -472,22 +550,7 @@ static void * mgm(void *arg) {
 
 	a->initial_eval = agent_evaluate(a->agent);
 
-	for_each_entry(resource_t, r, &a->new_view->resources) {
-		r->status = RESOURCE_STATUS_FREE;
-	}
-	a->best_eval = agent_evaluate_view(a->agent, a->new_view);
-	a->max_resources = -1;
-
-	view_t *best_view = view_clone(a->new_view);
-
-	//permutate_assignment(a, list_first_entry(&a->new_view->resources, resource_t, _l), 0, &best_view, &a->best_eval);
-	a->best_eval = 0;
-	DEBUG_MESSAGE(a, "optimal utility: %f\n", a->best_eval);
-
-	a->max_resources = view_count_resources(best_view, a->agent->id);
-	DEBUG_MESSAGE(a, "with %i resources\n", a->max_resources);
-
-	view_free(best_view);
+	get_optimal_utility(a);
 
 	mgm_mode_t mode = MGM_WAIT_OK_MODE;
 
@@ -709,7 +772,9 @@ static void mgm_cleanup(dcop_t *dcop) {
 
 		tlm_free(_a->agent->tlm, _a);
 
-		DEBUG_MESSAGE(_a, "TLM used: %uKB\n", _a->agent->tlm->max_used / 1024);
+		if (_a->agent->tlm) {
+			DEBUG_MESSAGE(_a, "TLM used: %uKB\n", _a->agent->tlm->max_used / 1024);
+		}
 	}
 	DEBUG print("\n");
 

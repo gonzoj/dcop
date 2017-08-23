@@ -21,7 +21,7 @@
 
 #include <sim_api.h>
 
-#define TLM_SIZE 128 // KBytes
+#define TLM_SIZE 1024 // KBytes
 
 bool use_tlm = true;
 

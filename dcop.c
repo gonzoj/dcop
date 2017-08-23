@@ -576,7 +576,7 @@ int main(int argc, char **argv) {
 		goto cleanup;
 	}
 
-	//signal(SIGINT, sigint_handler);
+	signal(SIGINT, sigint_handler);
 
 	print("initialize algorithm '%s'\n\n", algo->name);
 	algo->init(dcop, algorithm_argc, algorithm_argv);

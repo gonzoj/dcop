@@ -6,7 +6,10 @@
 #include "list.h"
 #include "resource.h"
 
+// TODO: is this working as intended?
 double tile(constraint_t *c) {
+	return 0;
+
 	agent_t *a = c->param.agent;
 
 	for (int i = 1; i <= a->dcop->hardware->number_of_tiles; i++) {

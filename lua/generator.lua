@@ -86,14 +86,14 @@ local function usage()
 end
 
 local number_of_agents = 2
-local number_of_tiles = 3
-local load_percent = 0.80
+local number_of_tiles = 2
+local load_percent = 0.4
 local can_yield = true
 local init_invader
 local max_per_agent = math.huge
 
 local function parse_arguments(arg)
-	for opt, arg in getopt("a:t:l:y:i:uh", unpack(arg)) do
+	for opt, arg in getopt("a:t:l:y:i:m:uh", unpack(arg)) do
 		if opt == "a" then
 			number_of_agents = tonumber(arg)
 		elseif opt == "t" then
@@ -139,7 +139,7 @@ if math.ceil(number_of_resources * load_percent) > max_per_agent * number_of_age
 
 	print("warning: adjusted number of agents from " .. prior .. " to " .. number_of_agents)
 
-	problem = dcop.new(dcop.hardware.nwe( { tile }, number_of_tiles), number_of_agents)
+	problem = dcop.new(dcop.hardware.new( { tile }, number_of_tiles), number_of_agents)
 end
 
 local resources_taken = 0
@@ -206,6 +206,7 @@ for _, agent in ipairs(problem.agents) do
 	end
 
 	if same_tile then
+		-- TODO: not all resources are given out yet; another agent might get resources that break this constraint
 		agent:add_constraint(constraint.create("TILE"))
 	end
 
@@ -223,7 +224,7 @@ if init_invader then
 	end
 else
  	invader = dcop.agent.new()
-	invader:add_constraint(constraint.create("AND", { constraint.create("NEC_RE", { 2, 2 }), constraint.create("TYPE", { "RECONFIG", 1, 1 }) }))
+	invader:add_constraint(constraint.create("AND", { constraint.create("NEC_RE", { 2, 4 }), constraint.create("TYPE", { "RECONFIG", 1, 1 }) }))
 end
 problem:add_agent(invader)
 --downey_params[invader.id] = { A = math.random(20, 300), sigma = math.random(0, 2.5) }

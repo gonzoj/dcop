@@ -105,14 +105,17 @@ elif [[ "$mode" = "valgrind" ]]; then
 elif [[ "$mode" = "gdb" ]]; then
 	gdb -ex "set args $*" -ex "run" $DCOP_ROOT/dcop
 else
-	simdir="$simdir/`date +%m-%d-%H:%M`"
+	if [[ "$simdir" = "/var/tmp/snipersim" ]]; then
+		simdir="$simdir/`date +%m-%d-%H:%M`"
+	fi
 	if [[ $log == "true" ]]; then
 		dcop_log="-l $simdir/dcop.log"
 	fi
-	$SNIPER_ROOT/run-sniper $config -n $cores -d $simdir --roi --no-cache-warming --viz $debug -- $DCOP_ROOT/dcop $dcop_log $*
+	$SNIPER_ROOT/run-sniper $config -n $cores -d $simdir --roi $debug -- $DCOP_ROOT/dcop $dcop_log $*
 	if [[ $? == 0 ]]; then
 		$SNIPER_ROOT/tools/cpistack.py -d $simdir -o $simdir/cpi-stack
 		$SNIPER_ROOT/tools/cpistack.py --simplified -d $simdir -o $simdir/cpi-stack-simple
+		cat $simdir/sim.out
 		if [[ $purge == "true" ]]; then
 			echo "run-dcop: purging simulation output at $simdir"
 			rm -r $simdir
