@@ -6,7 +6,8 @@
 #include "list.h"
 #include "tlm.h"
 
-#define MAX_ENTRIES 8192
+//#define MAX_ENTRIES 8192
+#define MAX_ENTRIES 32768
 
 tlm_t * tlm_create(size_t kbytes) {
 	tlm_t *tlm = malloc(sizeof(tlm_t));

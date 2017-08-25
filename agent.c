@@ -269,6 +269,11 @@ double agent_evaluate(agent_t *a) {
 		for_each_entry(constraint_t, c, &a->constraints) {
 			r += c->eval(c);
 
+			// IMPROVEMENT: do not evaluate further constraints if already INF
+			if (!isfinite(r)) {
+				break;
+			}
+
 #ifdef DEBUG_NATIVE_CONSTRAINTS
 			console_lock();
 			agent_refresh(a);
@@ -374,6 +379,10 @@ message_t * agent_recv_filter(agent_t *r, bool (*filter)(message_t *, void *), v
 }
 
 void agent_refresh(agent_t *a) {
+	if (!a->L) {
+		return;
+	}
+
 	for_each_entry(resource_t, r, &a->view->resources) {
 		resource_refresh(a->L, r);
 	}

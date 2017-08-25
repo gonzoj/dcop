@@ -161,6 +161,29 @@ static double get_improvement(mgm_agent_t *a, double *eval) {
 }
 
 static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t **new_view, double *new_eval) {
+	// only one var at a time...
+	/*
+	for_each_entry(resource_t, r, &a->new_view->resources) {
+			int status = r->status;
+			int owner = r->owner;
+
+			agent_claim_resource(a->agent, r);
+
+			double improve = get_improvement(a, new_eval);
+
+			if (improve > 0) {
+				view_copy(*new_view, a->new_view);
+
+				a->improve += improve;
+			}
+
+			r->status = status;
+			r->owner = owner;
+	}
+
+	return false;
+	*/
+
 	// IMPROVEMENT: stop when optimal utility is acquired
 	if (a->best_eval >= 0 && new_eval != &a->best_eval && *new_eval == a->best_eval) { // TODO: urgh...
 		return true;
@@ -301,6 +324,8 @@ static void try_subregions(mgm_agent_t *a) {
 
 	for_each_entry_safe(view_t, v, _v, regions) {
 		if (!result) {
+			DEBUG_MESSAGE(a, "check region\n");
+
 			a->improve = 0;
 
 			a->new_view = v;
@@ -325,6 +350,7 @@ static void try_subregions(mgm_agent_t *a) {
 
 			// TODO: hack...
 			if (a->best_eval < 0) {
+				DEBUG_MESSAGE(a, "cancel after one subregion\n");
 				result = true;
 			}
 		}
@@ -489,8 +515,14 @@ static bool filter_mgm_message(message_t *msg, void *mode) {
 
 // TODO: actually, we only have to consider a region of max_tiles
 static void get_optimal_utility(mgm_agent_t *a) {
+	//a->best_eval = 0;
+	//a->max_resources = -1;
+	//return;
+
 	for_each_entry(resource_t, r, &a->new_view->resources) {
-		r->status = RESOURCE_STATUS_FREE;
+		if (!agent_is_owner(a->agent, r)) {
+			r->status = RESOURCE_STATUS_FREE;
+		}
 	}
 	a->best_eval = agent_evaluate_view(a->agent, a->new_view);
 	a->max_resources = -1;

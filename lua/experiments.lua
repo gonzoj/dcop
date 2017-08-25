@@ -15,8 +15,8 @@ function run(dir, tiles, load_percent, max_per_agent, algo)
 	return os.execute(cmd)
 end
 
---number_of_tiles = { 5, 10, 20, 30, 40, 50 }
-number_of_tiles = { 1, 2 }
+number_of_tiles = { 5, 10, 20, 30, 40, 50 }
+--number_of_tiles = { 1, 2 }
 
 for i, n in ipairs(number_of_tiles) do
 	run(dir .. "/var_dom/mgm-" .. n, n, 0.4, 4, "mgm")
@@ -26,8 +26,8 @@ for i, n in ipairs(number_of_tiles) do
 	run(dir .. "/var_dom/distrm-" .. n, n, 0.4, 4, "distrm")
 end
 
---number_of_agents = { 1, 5, 10, 20, 30, 40, 50 }
-number_of_agents = { 2, 3 }
+number_of_agents = { 1, 5, 10, 20, 30, 40, 50 }
+--number_of_agents = { 2, 3 }
 
 for i, n in ipairs(number_of_agents) do
 	local tiles = 2

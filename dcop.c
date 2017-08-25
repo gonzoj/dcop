@@ -274,7 +274,13 @@ static struct dcop * dcop_load(const char *file, int argc, char **argv) {
 			dcop_free(dcop);
 
 			return NULL;
+		} else if (!a->has_lua_constraints) {
+			lua_close(a->L);
+
+			a->L = NULL;
 		}
+
+
 	}
 
 	pthread_mutex_init(&dcop->mt, NULL);
