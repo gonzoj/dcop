@@ -63,7 +63,7 @@ fig = plt.figure()
 
 ax1 = fig.add_subplot(111)
 
-ax1.set_title("MGM vs DistRM (#Tiles)")
+ax1.set_title("MGM vs DistRM (#Agents)")
 ax1.set_xlabel('Number of tiles')
 ax1.set_ylabel('Number of instructions')
 
