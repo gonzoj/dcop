@@ -85,7 +85,9 @@ pd:close()
 pd = nil
 
 --number_of_agents = { 1, 5, 10, 20, 30, 40, 50 }
-number_of_agents = { 1, 2, 3, 4, 5, 6 }
+number_of_agents = { 2, 3, 4 }
+
+-- TODO: fix number of agents adjusting in generator.lua
 
 for i, n in ipairs(number_of_agents) do
 	if sniper then
