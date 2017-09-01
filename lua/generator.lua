@@ -133,6 +133,7 @@ local problem = dcop.new(dcop.hardware.new({ tile },  number_of_tiles), number_o
 
 local number_of_resources = problem.hardware.number_of_resources
 
+--[[
 if math.ceil(number_of_resources * load_percent) > max_per_agent * number_of_agents then
 	local prior = number_of_agents
 	number_of_agents = math.ceil(math.ceil(number_of_resources * load_percent) / max_per_agent)
@@ -141,6 +142,7 @@ if math.ceil(number_of_resources * load_percent) > max_per_agent * number_of_age
 
 	problem = dcop.new(dcop.hardware.new( { tile }, number_of_tiles), number_of_agents)
 end
+--]]
 
 local resources_taken = 0
 
@@ -231,7 +233,7 @@ problem:add_agent(invader)
 downey_params[invader.id] = { A = 300, sigma = 0.001 }
 
 for _, agent in ipairs(problem.agents) do
-	agent:add_constraint(constraint.create("SPEEDUP", { downey_params[agent.id].A, downey_params[agent.id].sigma }))
+	--agent:add_constraint(constraint.create("SPEEDUP", { downey_params[agent.id].A, downey_params[agent.id].sigma }))
 
 	for _, neighbor in ipairs(problem.agents) do
 		if agent ~= neighbor then
@@ -241,7 +243,7 @@ for _, agent in ipairs(problem.agents) do
 					downey_params[agent.id].A, downey_params[agent.id].sigma,
 					downey_params[neighbor.id].A, downey_params[neighbor.id].sigma
 				}))
-				agent:add_constraint(constraint.create("PREFER_FREE", { neighbor }))
+				--agent:add_constraint(constraint.create("PREFER_FREE", { neighbor }))
 			else
 				agent:add_constraint(constraint.create("SHARE", { neighbor }))
 			end

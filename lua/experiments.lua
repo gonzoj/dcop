@@ -56,7 +56,7 @@ else
 end
 
 --number_of_tiles = { 5, 10, 20, 30, 40, 50 }
-number_of_tiles = { 1, 2, 3 }
+number_of_tiles = { 3 }
 
 for i, n in ipairs(number_of_tiles) do
 	if sniper then
@@ -79,6 +79,11 @@ for i, n in ipairs(number_of_tiles) do
 		pd = io.open(dir .. "/var_dom/plot-var_dom.csv", "w")
 	end
 	pd:write(string.format("%i;%s;%s\n", n, mgm_data, distrm_data))
+
+	os.execute(string.format("cp %s/var_dom/mgm-%i/cpi-stack.png %s/plots/cpi-stack-mgm-var_dom-%i.png", dir, n, dir, n))
+	os.execute(string.format("convert %s/plots/cpi-stack-mgm-var_dom-%i.png %s/plots/cpi-stack-mgm-var_dom-%i.pdf", dir, n, dir, n))
+	os.execute(string.format("cp %s/var_dom/distrm-%i/cpi-stack.png %s/plots/cpi-stack-distrm-var_dom-%i.png", dir, n, dir, n))
+	os.execute(string.format("convert %s/plots/cpi-stack-distrm-var_dom-%i.png %s/plots/cpi-stack-distrm-var_dom-%i.pdf", dir, n, dir, n))
 end 
 
 pd:close()
@@ -111,7 +116,12 @@ for i, n in ipairs(number_of_agents) do
 		pd = io.open(dir .. "/var_ag/plot-var_ag.csv", "w")
 	end
 	pd:write(string.format("%i;%s;%s\n", n, mgm_data, distrm_data))
-end
+
+	os.execute(string.format("cp %s/var_ag/mgm-%i/cpi-stack.png %s/plots/cpi-stack-mgm-var_ag-%i.png", dir, n, dir, n))
+	os.execute(string.format("convert %s/plots/cpi-stack-mgm-var_ag-%i.png %s/plots/cpi-stack-mgm-var_ag-%i.pdf", dir, n, dir, n))
+	os.execute(string.format("cp %s/var_ag/distrm-%i/cpi-stack.png %s/plots/cpi-stack-distrm-var_ag-%i.png", dir, n, dir, n))
+	os.execute(string.format("convert %s/plots/cpi-stack-distrm-var_ag-%i.png %s/plots/cpi-stack-distrm-var_ag-%i.pdf", dir, n, dir, n))
+end 
 
 pd:close()
 
