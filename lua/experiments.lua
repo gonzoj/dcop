@@ -55,6 +55,8 @@ else
 	sniper = true
 end
 
+os.execute("mkdir -p " .. dir .. "/plots")
+
 --number_of_tiles = { 5, 10, 20, 30, 40, 50 }
 number_of_tiles = { 1, 2, 3, 4, 5 }
 
@@ -126,6 +128,5 @@ end
 pd:close()
 
 print("plotting with matplotlib...")
-os.execute("mkdir -p " .. dir .. "/plots")
 os.execute("python plot.py " .. dir .. "/")
 
