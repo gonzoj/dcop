@@ -56,7 +56,7 @@ else
 end
 
 --number_of_tiles = { 5, 10, 20, 30, 40, 50 }
-number_of_tiles = { 3 }
+number_of_tiles = { 1, 2, 3, 4, 5 }
 
 for i, n in ipairs(number_of_tiles) do
 	if sniper then
@@ -90,7 +90,7 @@ pd:close()
 pd = nil
 
 --number_of_agents = { 1, 5, 10, 20, 30, 40, 50 }
-number_of_agents = { 2, 3, 4 }
+number_of_agents = { 1, 2, 4 }
 
 -- TODO: fix number of agents adjusting in generator.lua
 

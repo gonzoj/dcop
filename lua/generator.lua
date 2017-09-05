@@ -133,6 +133,12 @@ local problem = dcop.new(dcop.hardware.new({ tile },  number_of_tiles), number_o
 
 local number_of_resources = problem.hardware.number_of_resources
 
+if load_percent > 1.0 then
+	load_percent = 1.0
+
+	print("warning: adjusting a-priori system load down to 100%")
+end
+
 --[[
 if math.ceil(number_of_resources * load_percent) > max_per_agent * number_of_agents then
 	local prior = number_of_agents
