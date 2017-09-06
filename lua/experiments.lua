@@ -92,7 +92,7 @@ pd:close()
 pd = nil
 
 --number_of_agents = { 1, 5, 10, 20, 30, 40, 50 }
-number_of_agents = { 1, 2, 4 }
+number_of_agents = { 1, 2, 4, 8 }
 
 -- TODO: fix number of agents adjusting in generator.lua
 
@@ -100,6 +100,12 @@ for i, n in ipairs(number_of_agents) do
 	if sniper then
 		local tiles = 2
 		local load_percent = (n * 2) / (tiles * tile_size)
+
+		while load_percent > 1.0 do
+			tiles = tiles + 1
+			load_percent = (n * 2) / (tiles * tile_size)
+			print("warning: adjusting number of tiles to " .. tiles .. " with load of " .. load_percent)
+		end
 
 		run(dir .. "/var_ag/mgm-" .. n, tiles, load_percent, 2, "mgm")
 
