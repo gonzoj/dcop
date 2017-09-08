@@ -232,7 +232,8 @@ if init_invader then
 	end
 else
  	invader = dcop.agent.new()
-	invader:add_constraint(constraint.create("AND", { constraint.create("NEC_RE", { 2, 4 }), constraint.create("TYPE", { "RECONFIG", 1, 1 }) }))
+	--invader:add_constraint(constraint.create("AND", { constraint.create("NEC_RE", { 2, 4 }), constraint.create("TYPE", { "RECONFIG", 1, 1 }) }))
+	invader:add_constraint(constraint.create("NEC_RE", { 2, 4 }))
 end
 problem:add_agent(invader)
 --downey_params[invader.id] = { A = math.random(20, 300), sigma = math.random(0, 2.5) }

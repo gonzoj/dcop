@@ -57,8 +57,7 @@ end
 
 os.execute("mkdir -p " .. dir .. "/plots")
 
---number_of_tiles = { 5, 10, 20, 30, 40, 50 }
-number_of_tiles = { 1, 2, 3, 4, 5 }
+number_of_tiles = { 1, 2, 3, 4, 5, 6, 7, 8 }
 
 for i, n in ipairs(number_of_tiles) do
 	if sniper then
@@ -91,8 +90,7 @@ end
 pd:close()
 pd = nil
 
---number_of_agents = { 1, 5, 10, 20, 30, 40, 50 }
-number_of_agents = { 1, 2, 4, 8 }
+number_of_agents = { 1, 2, 3, 4, 5, 6, 7, 8 }
 
 -- TODO: fix number of agents adjusting in generator.lua
 
