@@ -1,4 +1,4 @@
 #!/bin/sh
 
-lua lua/experiments.lua $@
+time lua lua/experiments.lua $@
 
