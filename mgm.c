@@ -191,8 +191,8 @@ static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 
 	// IMPROVEMENT: stop when at maximum number of acquired resources necessary for optimal utility
 	// PROBLEM: if optimal utility can't be reached, next best utility might require more resources
-	//if (pos == a->agent->dcop->hardware->number_of_resources || (a->max_resources >= 0 && view_count_resources(a->new_view, a->agent->id) >= a->max_resources)) {	
-	if (pos == a->agent->dcop->hardware->number_of_resources) {
+	if (pos == a->agent->dcop->hardware->number_of_resources || (a->max_resources >= 0 && view_count_resources(a->new_view, a->agent->id) >= a->max_resources)) {
+	//if (pos == a->agent->dcop->hardware->number_of_resources) {
 		/*
 		console_lock();
 		DEBUG_MESSAGE(a, "trying assignment with utility %f:\n", agent_evaluate_view(a->agent, a->new_view));
@@ -215,7 +215,7 @@ static bool permutate_assignment(mgm_agent_t *a, resource_t *r, int pos, view_t 
 				return true;
 			}
 
-			if (*new_eval == 0) {
+			if (*new_eval == 0 && a->best_eval >= 0) {
 				DEBUG_MESSAGE(a, "utility 0 is optimal\n");
 				return true;
 			}
