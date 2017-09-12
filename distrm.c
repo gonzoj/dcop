@@ -25,7 +25,7 @@
 static algorithm_t _distrm;
 
 /* options */
-static int cluster_size = 6;
+static int cluster_size = 12;
 static int try_limit = 5;
 static int max_par_reqs = 2;
 static int region_size = 2;

@@ -1,7 +1,7 @@
 dir = "../extern/" .. os.date("%m-%d-%H:%M")
 
 tile_size = 6
-cluster_size = 6
+cluster_size = 12
 
 function run(dir, tiles, load_percent, max_per_agent, algo)
 	local agents = math.ceil(math.ceil(tiles * tile_size * load_percent) / max_per_agent) -- a-priori agents
