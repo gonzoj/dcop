@@ -392,6 +392,8 @@ static void find_assignment(mgm_agent_t *a) {
 
 // TODO: potentially slow if lots of resources are free
 static bool try_free_resources(mgm_agent_t *a) {
+	DEBUG_MESSAGE(a, "trying free resources\n");
+
 	a->improve = 0;
 
 	view_copy(a->new_view, a->agent->view);

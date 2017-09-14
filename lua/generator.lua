@@ -250,7 +250,7 @@ for _, agent in ipairs(problem.agents) do
 					downey_params[agent.id].A, downey_params[agent.id].sigma,
 					downey_params[neighbor.id].A, downey_params[neighbor.id].sigma
 				}))
-				--agent:add_constraint(constraint.create("PREFER_FREE", { neighbor }))
+				agent:add_constraint(constraint.create("PREFER_FREE", { neighbor }))
 			else
 				agent:add_constraint(constraint.create("SHARE", { neighbor }))
 			end
