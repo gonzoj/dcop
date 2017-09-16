@@ -105,6 +105,12 @@ for i, n in ipairs(number_of_agents) do
 			print("warning: adjusting number of tiles to " .. tiles .. " with load of " .. load_percent)
 		end
 
+		while 2 * n > load_percent * tiles * tile_size do
+			tiles = tiles + 1
+			load_percent = (n * 2) / (tiles * tile_size)
+			print("warning: adjusting number of tiles to " .. tiles .. " with load of " .. load_percent)
+		end
+
 		run(dir .. "/var_ag/mgm-" .. n, tiles, load_percent, 2, "mgm")
 
 		local f = io.open(dir .. "/var_ag/mgm-" .. n .. "/seed", "r")
