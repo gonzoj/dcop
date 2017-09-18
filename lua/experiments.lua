@@ -3,6 +3,14 @@ dir = "../extern/" .. os.date("%m-%d-%H:%M")
 tile_size = 6
 cluster_size = 12
 
+function strtime(t)
+	local h, m, s
+	h = t / 3600
+	m = (t - h * 3600) / 60
+	s = (t - h * 3600 - m * 60)
+	return string.format("%02i:%02i:%02i", h, m, s)
+end
+
 function run(dir, tiles, load_percent, max_per_agent, algo)
 	local agents = math.ceil(math.ceil(tiles * tile_size * load_percent) / max_per_agent) -- a-priori agents
 	local cores = agents + 2 -- invading agent + dcop thread
@@ -13,9 +21,15 @@ function run(dir, tiles, load_percent, max_per_agent, algo)
 		seed = "-s " .. last_seed
 		param = "-p -c" .. cluster_size
 	end
-	local cmd = string.format("./run-dcop -n%i -s\"%s\" -- -q -o -t%i -o -a%i -o -l%f -o -m%i -a %s %s %s lua/generator.lua", cores, dir, tiles, agents, load_percent, max_per_agent, algo, seed, param)
-	print("running command: " .. cmd)
-	return os.execute(cmd), agents
+	local cmd = string.format("./run-dcop -n%i -s\"%s\" -- -q -o -t%i -o -a%i -o -l%f -o -m%i -a %s %s %s -l%s lua/generator.lua", cores, dir, tiles, agents, load_percent, max_per_agent, algo, seed, param, dir .. "/dcop.log")
+	print(os.date() .. ": running command: " .. cmd)
+	local start = os.time()
+	local result = os.execute(cmd)
+	local time = os.difftime(os.time(), start)
+	local f = io.open(dir .. "/run", "w")
+	f:write(string.format("%i %s %s\n", time, strtime(time), cmd))
+	f:close()
+	return result, agents
 end
 
 function get_average(d, c, n)

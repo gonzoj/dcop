@@ -418,6 +418,7 @@ static int parse_arguments(int argc, char **argv) {
 				break;
 
 			case 'l':
+				printf("logging to %s\n", optarg);
 				logfile = strdup(optarg);
 				break;
 
