@@ -173,7 +173,7 @@ double downey(constraint_t *c) {
 	//double d_A = _downey(a_A, a_sigma, view_count_resources(a->view, a->id));
 	//double d_B = _downey(b_A, b_sigma, view_count_resources(a->agent_view[b], b));
 	double s_A = _downey(a_A, a_sigma, view_count_resources(a->view, a->id)) - _downey(a_A, a_sigma, view_count_resources(a->view, a->id) - conflicts);
-	double s_B = abs(_downey(b_A, b_sigma, view_count_resources(a->agent_view[b], b) - conflicts) - _downey(b_A, b_sigma, view_count_resources(a->agent_view[b], b)));
+	double s_B = fabs(_downey(b_A, b_sigma, view_count_resources(a->agent_view[b], b) - conflicts) - _downey(b_A, b_sigma, view_count_resources(a->agent_view[b], b)));
 
 	if (s_A > s_B) {
 		return 0;

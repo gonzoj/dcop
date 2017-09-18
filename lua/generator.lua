@@ -189,7 +189,7 @@ for _, agent in ipairs(problem.agents) do
 		agent:add_constraint(constraint.create("TYPE", { t, n, n }))
 	end
 
-	agent:add_constraint(constraint.create("NEC_RE", { n, n }))
+	--agent:add_constraint(constraint.create("NEC_RE", { n, n }))
 
 	same_tile = true
 
