@@ -7,7 +7,7 @@ function run(dir, tiles, load_percent, max_per_agent, algo)
 	local agents = math.ceil(math.ceil(tiles * tile_size * load_percent) / max_per_agent) -- a-priori agents
 	local cores = agents + 2 -- invading agent + dcop thread
 	local seed = "-f " .. dir .. "/seed"
-	local param = ""
+	local param = "-p -d20"
 	if algo == "distrm" then
 		cores = cores + math.ceil(tiles * tile_size / cluster_size) + 1 -- directory services + idle thread
 		seed = "-s " .. last_seed
