@@ -5,9 +5,9 @@ cluster_size = 12
 
 function strtime(t)
 	local h, m, s
-	h = t / 3600
-	m = (t - h * 3600) / 60
-	s = (t - h * 3600 - m * 60)
+	h = math.floor(t / 3600)
+	m = math.floor((t - h * 3600) / 60)
+	s = math.floor(t - h * 3600 - m * 60)
 	return string.format("%02i:%02i:%02i", h, m, s)
 end
 
