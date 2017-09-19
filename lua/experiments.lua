@@ -15,7 +15,7 @@ function run(dir, tiles, load_percent, max_per_agent, algo)
 	local agents = math.ceil(math.ceil(tiles * tile_size * load_percent) / max_per_agent) -- a-priori agents
 	local cores = agents + 2 -- invading agent + dcop thread
 	local seed = "-f " .. dir .. "/seed"
-	local param = "-p -d20"
+	local param = "-p -d20 -p -p1"
 	if algo == "distrm" then
 		cores = cores + math.ceil(tiles * tile_size / cluster_size) + 1 -- directory services + idle thread
 		seed = "-s " .. last_seed
@@ -96,9 +96,9 @@ for i, n in ipairs(number_of_tiles) do
 	pd:write(string.format("%i;%s;%s\n", n, mgm_data, distrm_data))
 
 	os.execute(string.format("cp %s/var_dom/mgm-%i/cpi-stack.png %s/plots/cpi-stack-mgm-var_dom-%i.png", dir, n, dir, n))
-	os.execute(string.format("convert %s/plots/cpi-stack-mgm-var_dom-%i.png %s/plots/cpi-stack-mgm-var_dom-%i.pdf", dir, n, dir, n))
+	os.execute(string.format("rsvg-convert -f pdf -o %s/plots/cpi-stack-mgm-var_dom-%i.pdf %s/plots/cpi-stack-mgm-var_dom-%i.png", dir, n, dir, n))
 	os.execute(string.format("cp %s/var_dom/distrm-%i/cpi-stack.png %s/plots/cpi-stack-distrm-var_dom-%i.png", dir, n, dir, n))
-	os.execute(string.format("convert %s/plots/cpi-stack-distrm-var_dom-%i.png %s/plots/cpi-stack-distrm-var_dom-%i.pdf", dir, n, dir, n))
+	os.execute(string.format("rsvg-convert -f pdf -o %s/plots/cpi-stack-distrm-var_dom-%i.pdf %s/plots/cpi-stack-distrm-var_dom-%i.png", dir, n, dir, n))
 end 
 
 pd:close()
@@ -144,9 +144,9 @@ for i, n in ipairs(number_of_agents) do
 	pd:write(string.format("%i;%s;%s\n", n, mgm_data, distrm_data))
 
 	os.execute(string.format("cp %s/var_ag/mgm-%i/cpi-stack.png %s/plots/cpi-stack-mgm-var_ag-%i.png", dir, n, dir, n))
-	os.execute(string.format("convert %s/plots/cpi-stack-mgm-var_ag-%i.png %s/plots/cpi-stack-mgm-var_ag-%i.pdf", dir, n, dir, n))
+	os.execute(string.format("rsvg-convert -f pdf %s/plots/cpi-stack-mgm-var_ag-%i.pdf %s/plots/cpi-stack-mgm-var_ag-%i.png", dir, n, dir, n))
 	os.execute(string.format("cp %s/var_ag/distrm-%i/cpi-stack.png %s/plots/cpi-stack-distrm-var_ag-%i.png", dir, n, dir, n))
-	os.execute(string.format("convert %s/plots/cpi-stack-distrm-var_ag-%i.png %s/plots/cpi-stack-distrm-var_ag-%i.pdf", dir, n, dir, n))
+	os.execute(string.format("rsvg-convert -f pdf %s/plots/cpi-stack-distrm-var_ag-%i.pdf %s/plots/cpi-stack-distrm-var_ag-%i.png", dir, n, dir, n))
 end 
 
 pd:close()

@@ -717,23 +717,27 @@ static void mgm_usage() {
 	printf("	--distance MAX, -d MAX\n");
 	printf("		maximum distance used by agents\n");
 	printf("\n");
+	printf("	--partition SIZE, -p SIZE\n");
+	printf("		parition size used\n");
+	printf("\n");
 }
 
 static int parse_arguments(int argc, char **argv) {
 	struct option long_options[] = {
 		{ "distance", required_argument, NULL, 'd' },
+		{ "partition", required_argument, NULL, 'p' },
 		{ 0 }
 	};
 
 	optind = 1;
 
 	while (true) {
-		int result = getopt_long(argc, argv, "d:", long_options, NULL);
+		int result = getopt_long(argc, argv, "d:p:", long_options, NULL);
 		if (result == -1) {
 			break;
 		}
 
-		int distance;
+		int distance, tiles;
 
 		switch (result) {
 			case 'd':
@@ -744,6 +748,17 @@ static int parse_arguments(int argc, char **argv) {
 				} else {
 					max_distance = distance;
 					print("mgm: distance set to %i\n", max_distance);
+				}
+				break;
+
+			case 'p':
+				tiles = (int) strtol(optarg, NULL, 10);
+				if (tiles <= 0) {
+					print_error("mgm: invalid partition size given\n");
+					print("mgm: using default partition size %i\n", max_tiles);
+				} else {
+					max_tiles = tiles;
+					print("mgm: partition size set to %i\n", max_tiles);
 				}
 				break;
 
