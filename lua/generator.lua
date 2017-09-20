@@ -156,6 +156,9 @@ downey_params = {}
 
 for _, agent in ipairs(problem.agents) do
 	local n = math.min(math.ceil((number_of_resources * load_percent) / number_of_agents), math.ceil(number_of_resources * load_percent) - resources_taken)
+	if n > max_per_agent then
+		n = max_per_agent
+	end
 
 	local resources = {}
 	local tid
@@ -215,7 +218,7 @@ for _, agent in ipairs(problem.agents) do
 
 	if same_tile then
 		-- TODO: not all resources are given out yet; another agent might get resources that break this constraint
-		agent:add_constraint(constraint.create("TILE"))
+		--agent:add_constraint(constraint.create("TILE"))
 	end
 
 	downey_params[agent.id] = { A = math.random(20, 300), sigma = math.random() * 2.5 }

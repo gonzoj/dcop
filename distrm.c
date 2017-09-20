@@ -652,6 +652,8 @@ static void * distrm(void *arg) {
 		message_free(msg);
 	}
 
+	print("%i: stop\n", a->agent->id);
+
 	if (!distrm_is_idle_agent(a->agent->id)) {
 		dcop_stop_ROI(a->agent->dcop);
 	}
