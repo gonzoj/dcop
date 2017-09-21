@@ -25,16 +25,21 @@ function run(dir, tiles, load_percent, max_per_agent, algo)
 		param = "-p -c" .. cluster_size
 	end
 	local cmd = string.format("./run-dcop -n%i -s\"%s\" -- -q -o -t%i -o -a%i -o -l%f -o -m%i -a %s %s %s -l%s -t%s lua/generator.lua", cores, dir, tiles, agents, load_percent, max_per_agent, algo, seed, param, dir .. "/dcop.log", dir .. "/tlm.stats")
-	local start
 	repeat
 		print(os.date() .. ": running command: " .. cmd)
-		start = os.time()
+		local start = os.time()
 		local result = os.execute(cmd)
+		if result == 0 then
+			local time = os.difftime(os.time(), start)
+			local f = io.open(dir .. "/run", "w")
+			if not f then
+				result = -1
+			else
+				f:write(string.format("%i %s %s\n", time, strtime(time), cmd))
+				f:close()
+			end
+		end
 	until result == 0
-	local time = os.difftime(os.time(), start)
-	local f = io.open(dir .. "/run", "w")
-	f:write(string.format("%i %s %s\n", time, strtime(time), cmd))
-	f:close()
 	return agents + 1
 end
 
