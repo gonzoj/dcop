@@ -97,17 +97,20 @@ os.execute("mkdir -p " .. dir .. "/plots")
 number_of_tiles = { 1, 2, 3, 4, 5, 6, 7, 8 }
 --number_of_tiles = { 1, 2, 3 }
 
+system_load = 0.4
+cores_per_agent = 4
+
 for i, n in ipairs(number_of_tiles) do
 	if sniper then
-		run(dir .. "/var_dom/mgm-" .. n, n, 0.4, 4, "mgm")
+		run(dir .. "/var_dom/mgm-" .. n, n, system_load, cores_per_agent, "mgm")
 
 		local f = io.open(dir .. "/var_dom/mgm-" .. n .. "/seed", "r")
 		last_seed = tonumber(f:read("*all"))
 		f:close()
-		run(dir .. "/var_dom/distrm-" .. n, n, 0.4, 4, "distrm")
+		run(dir .. "/var_dom/distrm-" .. n, n, system_load, cores_per_agent, "distrm")
 	end
 
-	local agents = math.ceil(math.ceil(n * tile_size * 0.4) / 4) + 1
+	local agents = math.ceil(math.ceil(n * tile_size * system_load) / cores_per_agent) + 1
 
 	local mgm_data = get_average(dir .. "/var_dom/mgm-" .. n, "remote cache", agents)
 	mgm_data = mgm_data .. ";" .. get_average(dir .. "/var_dom/mgm-" .. n, "Instructions", agents)
@@ -133,32 +136,34 @@ pd = nil
 
 ---]]
 number_of_agents = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
---number_of_agents = { 1, 2, 3 }
+--number_of_agents = { 6, 7, 8, 9 }
 -- TODO: fix number of agents adjusting in generator.lua
+
+tiles = 3
+cores_per_agent = 2
 
 for i, n in ipairs(number_of_agents) do
 	if sniper then
-		local tiles = 3
-		local load_percent = (n * 2) / (tiles * tile_size)
+		local load_percent = (n * cores_per_agent) / (tiles * tile_size)
 
 		while load_percent > 1.0 do
 			tiles = tiles + 1
-			load_percent = (n * 2) / (tiles * tile_size)
+			load_percent = (n * cores_per_agent) / (tiles * tile_size)
 			print("warning: adjusting number of tiles to " .. tiles .. " with load of " .. load_percent)
 		end
 
 		while 2 * n > load_percent * tiles * tile_size do
 			tiles = tiles + 1
-			load_percent = (n * 2) / (tiles * tile_size)
+			load_percent = (n * cores_per_agent) / (tiles * tile_size)
 			print("warning: adjusting number of tiles to " .. tiles .. " with load of " .. load_percent)
 		end
 
-		run(dir .. "/var_ag/mgm-" .. n, tiles, load_percent, 2, "mgm")
+		run(dir .. "/var_ag/mgm-" .. n, tiles, load_percent, cores_per_agent, "mgm")
 
 		local f = io.open(dir .. "/var_ag/mgm-" .. n .. "/seed", "r")
 		last_seed = tonumber(f:read("*all"))
 		f:close()
-		run(dir .. "/var_ag/distrm-" .. n, tiles, load_percent, 2, "distrm")
+		run(dir .. "/var_ag/distrm-" .. n, tiles, load_percent, cores_per_agent, "distrm")
 	end
 
 	local mgm_data = get_average(dir .. "/var_ag/mgm-" .. n, "remote cache", n + 1)

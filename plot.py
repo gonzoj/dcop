@@ -78,6 +78,8 @@ def myplot(xlabel, x, data, file):
 
     plt.subplots_adjust(wspace=0.4)
 
+    plt.tight_layout()
+
     fig.savefig(dir + 'plots/' + file + '.png')
     fig.savefig(dir + 'plots/' + file + '.pdf')
 

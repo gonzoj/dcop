@@ -35,8 +35,6 @@ bool skip_lua = true;
 
 pthread_t main_tid = 0;
 
-static pthread_t roi_tid = 0;
-
 static time_t r_seed = 0;
 static char *r_seedfile = NULL;
 
@@ -312,8 +310,6 @@ void dcop_start_ROI(dcop_t *dcop) {
 	if (++dcop->ready == dcop->number_of_agents) {
 		SimRoiStart();
 
-		roi_tid = pthread_self();
-
 		pthread_cond_broadcast(&dcop->cv);
 	} else {
 		pthread_cond_wait(&dcop->cv, &dcop->mt);
@@ -332,8 +328,7 @@ void dcop_stop_ROI(dcop_t *dcop) {
 	}
 
 	if (--dcop->ready == 0) {
-		// is this crashing sniper?
-		//SimRoiEnd();
+		SimRoiEnd();
 
 		pthread_cond_broadcast(&dcop->cv);
 	} else {
@@ -341,10 +336,6 @@ void dcop_stop_ROI(dcop_t *dcop) {
 	}
 
 	pthread_mutex_unlock(&dcop->mt);
-
-	if (pthread_equal(roi_tid, pthread_self())) {
-		SimRoiEnd();
-	}
 }
 
 static void dcop_dump_tlm_stats(dcop_t *dcop) {

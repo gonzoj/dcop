@@ -618,6 +618,9 @@ static void * distrm(void *arg) {
 							agent_broadcast(a->agent, a->agent->dcop, distrm_message_new(a->agent->tlm, DISTRM_INVADE));
 						} else {
 							agent_broadcast(a->agent, a->agent->dcop, distrm_message_new(a->agent->tlm, DISTRM_END));
+
+							dcop_stop_ROI(a->agent->dcop);
+
 							agent_send(a->agent, idle_agent->agent, distrm_message_new(a->agent->tlm, DISTRM_END));
 
 							cluster_stop();
@@ -629,6 +632,8 @@ static void * distrm(void *arg) {
 
 						if (!invading_agent) {
 							DEBUG_MESSAGE(a, "stale resource assignment detected\n");
+
+							dcop_stop_ROI(a->agent->dcop);
 
 							agent_send(a->agent, idle_agent->agent, distrm_message_new(a->agent->tlm, DISTRM_END));
 
@@ -642,6 +647,11 @@ static void * distrm(void *arg) {
 
 			case DISTRM_END:
 				stop = true;
+
+				if (!distrm_is_idle_agent(a->agent->id)) {
+					dcop_stop_ROI(a->agent->dcop);
+				}
+
 				break;
 
 			default:
@@ -650,12 +660,6 @@ static void * distrm(void *arg) {
 		}
 
 		message_free(msg);
-	}
-
-	print("%i: stop\n", a->agent->id);
-
-	if (!distrm_is_idle_agent(a->agent->id)) {
-		dcop_stop_ROI(a->agent->dcop);
 	}
 
 	return (void *) a;
