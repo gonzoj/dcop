@@ -2,6 +2,7 @@ dir = "../extern/" .. os.date("%m-%d-%H:%M")
 
 tile_size = 6
 cluster_size = 12
+region_size = 5
 
 max_distance = 20
 max_tiles = 2
@@ -22,7 +23,7 @@ function run(dir, tiles, load_percent, max_per_agent, algo)
 	if algo == "distrm" then
 		cores = cores + math.ceil(tiles * tile_size / cluster_size) + 1 -- directory services + idle thread
 		seed = "-s " .. last_seed
-		param = "-p -c" .. cluster_size
+		param = "-p -c" .. cluster_size .. " -p -r" .. region_size
 	end
 	local cmd = string.format("./run-dcop -n%i -s\"%s\" -- -q -o -t%i -o -a%i -o -l%f -o -m%i -a %s %s %s -l%s -t%s lua/generator.lua", cores, dir, tiles, agents, load_percent, max_per_agent, algo, seed, param, dir .. "/dcop.log", dir .. "/tlm.stats")
 	repeat
