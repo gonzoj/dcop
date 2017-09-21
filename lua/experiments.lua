@@ -24,8 +24,7 @@ function run(dir, tiles, load_percent, max_per_agent, algo)
 		seed = "-s " .. last_seed
 		param = "-p -c" .. cluster_size
 	end
-	local cmd = string.format("./run-dcop -n%i -s\"%s\" -- -q -o -t%i -o -a%i -o -l%f -o -m%i -a %s %s %s -l%s lua/generator.lua", cores, dir, tiles, agents, load_percent, max_per_agent, algo, seed, param, dir .. "/dcop.log")
-	--local cmd = string.format("./run-dcop -n%i -s\"%s\" -- -o -t%i -o -a%i -o -l%f -o -m%i -a %s %s %s lua/generator.lua", cores, dir, tiles, agents, load_percent, max_per_agent, algo, seed, param)
+	local cmd = string.format("./run-dcop -n%i -s\"%s\" -- -q -o -t%i -o -a%i -o -l%f -o -m%i -a %s %s %s -l%s -t%s lua/generator.lua", cores, dir, tiles, agents, load_percent, max_per_agent, algo, seed, param, dir .. "/dcop.log", dir .. "/tlm.stats")
 	local start
 	repeat
 		print(os.date() .. ": running command: " .. cmd)
@@ -63,6 +62,18 @@ function get_average(d, c, n)
 	return math.ceil(result)
 end
 
+function get_tlm_stats(d)
+	local n = 0
+	local tlm_max = 0
+
+	for line in io.lines(d .. "/tlm.stats") do
+		n = n + 1
+		tlm_max = tlm_max + tonumber(line:match("%d+ (%d+)"))
+	end
+
+	return math.ceil(tlm_max / n)
+end
+
 if arg[1] then
 	dir = arg[1]
 	if dir:sub(-1) == '/' then
@@ -79,6 +90,7 @@ end
 os.execute("mkdir -p " .. dir .. "/plots")
 ---[[
 number_of_tiles = { 1, 2, 3, 4, 5, 6, 7, 8 }
+--number_of_tiles = { 1, 2, 3 }
 
 for i, n in ipairs(number_of_tiles) do
 	if sniper then
@@ -94,8 +106,11 @@ for i, n in ipairs(number_of_tiles) do
 
 	local mgm_data = get_average(dir .. "/var_dom/mgm-" .. n, "remote cache", agents)
 	mgm_data = mgm_data .. ";" .. get_average(dir .. "/var_dom/mgm-" .. n, "Instructions", agents)
+	mgm_data = mgm_data .. ";" .. get_tlm_stats(dir .. "/var_dom/mgm-" .. n)
+
 	local distrm_data = get_average(dir .. "/var_dom/distrm-" .. n, "remote cache", agents)
 	distrm_data = distrm_data .. ";" .. get_average(dir .. "/var_dom/distrm-" .. n, "Instructions", agents)
+	distrm_data = distrm_data .. ";" .. get_tlm_stats(dir .. "/var_dom/distrm-" .. n)
 
 	if not pd then
 		pd = io.open(dir .. "/var_dom/plot-var_dom.csv", "w")
@@ -113,8 +128,7 @@ pd = nil
 
 ---]]
 number_of_agents = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
---number_of_agents = { 8 }
---number_of_agents = { 1, 2, 3, 4 }
+--number_of_agents = { 1, 2, 3 }
 -- TODO: fix number of agents adjusting in generator.lua
 
 for i, n in ipairs(number_of_agents) do
@@ -144,8 +158,11 @@ for i, n in ipairs(number_of_agents) do
 
 	local mgm_data = get_average(dir .. "/var_ag/mgm-" .. n, "remote cache", n + 1)
 	mgm_data = mgm_data .. ";" .. get_average(dir .. "/var_ag/mgm-" .. n, "Instructions", n + 1)
+	mgm_data = mgm_data .. ";" .. get_tlm_stats(dir .. "/var_ag/mgm-" .. n)
+
 	local distrm_data = get_average(dir .. "/var_ag/distrm-" .. n, "remote cache", n + 1)
 	distrm_data = distrm_data .. ";" .. get_average(dir .. "/var_ag/distrm-" .. n, "Instructions", n + 1)
+	distrm_data = distrm_data .. ";" .. get_tlm_stats(dir .. "/var_ag/distrm-" .. n)
 
 	if not pd then
 		pd = io.open(dir .. "/var_ag/plot-var_ag.csv", "w")

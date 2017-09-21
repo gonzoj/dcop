@@ -51,6 +51,8 @@ static algorithm_t *algo = NULL;
 
 static dcop_t *dcop = NULL;
 
+static char *tlm_stats_file = NULL;
+
 void dcop_register_algorithm(algorithm_t *a) {
 	list_add_tail(&a->_l, &algorithms);
 }
@@ -345,6 +347,22 @@ void dcop_stop_ROI(dcop_t *dcop) {
 	}
 }
 
+static void dcop_dump_tlm_stats(dcop_t *dcop) {
+	if (!tlm_stats_file || !use_tlm) {
+		return;
+	}
+
+	print("dumping TLM statistics\n");
+
+	FILE *f = fopen(tlm_stats_file, "w");
+
+	for_each_entry(agent_t, a, &dcop->agents) {
+		fprintf(f, "%i %lu\n", a->id, a->tlm->max_used);
+	}
+
+	fclose(f);
+}
+
 static void usage() {
 	printf("\n");
 	printf("usage:\n");
@@ -385,6 +403,9 @@ static void usage() {
 	printf("	--quiet , -q\n");
 	printf("		run algorithm in quiet mode (console is suppressed)\n");
 	printf("\n");
+	printf("	--tlmstats FILE, -t FILE\n");
+	printf("		dump tlm statistics to FILE\n");
+	printf("\n");
 
 	printf("algorithms:\n");
 	printf("\n");
@@ -408,11 +429,12 @@ static int parse_arguments(int argc, char **argv) {
 		{ "precise", no_argument, NULL, 'e' },
 		{ "shared", no_argument, NULL, 'm' },
 		{ "quiet", no_argument, NULL, 'q' },
+		{ "tlmstats", required_argument, NULL, 't'},
 		{ 0 }
 	};
 
 	while (true) {
-		int result = getopt_long(argc, argv, "ha:l:dp:o:f:s:emq", long_options, NULL);
+		int result = getopt_long(argc, argv, "ha:l:dp:o:f:s:emqt:", long_options, NULL);
 		if (result == -1) {
 			break;
 		}
@@ -470,6 +492,11 @@ static int parse_arguments(int argc, char **argv) {
 			case 'q':
 				printf("running algorithm in quiet mode\n");
 				silent = true;
+				break;
+
+			case 't':
+				printf("dumping tlm stats to %s\n", optarg);
+				tlm_stats_file = strdup(optarg);
 				break;
 
 			case '?':
@@ -617,6 +644,8 @@ int main(int argc, char **argv) {
 
 	print("final resource assignment:\n");
 	view_dump(dcop->hardware->view);
+
+	dcop_dump_tlm_stats(dcop);
 
 	dcop_free(dcop);
 
