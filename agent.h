@@ -21,6 +21,7 @@ typedef struct agent {
 	pthread_mutex_t mt;
 	pthread_cond_t cv;
 	struct list_head msg_queue;
+	size_t bytes_sent;
 	view_t *view;
 	view_t **agent_view;
 	int number_of_neighbors;

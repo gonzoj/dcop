@@ -348,7 +348,7 @@ static void dcop_dump_tlm_stats(dcop_t *dcop) {
 	FILE *f = fopen(tlm_stats_file, "w");
 
 	for_each_entry(agent_t, a, &dcop->agents) {
-		fprintf(f, "%i %lu\n", a->id, a->tlm->max_used);
+		fprintf(f, "%i %lu %lu\n", a->id, a->tlm->max_used, a->bytes_sent);
 	}
 
 	fclose(f);

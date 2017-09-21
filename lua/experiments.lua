@@ -4,7 +4,7 @@ tile_size = 6
 cluster_size = 12
 
 max_distance = 20
-max_tiles = 1
+max_tiles = 2
 
 function strtime(t)
 	local h, m, s
@@ -39,6 +39,12 @@ function run(dir, tiles, load_percent, max_per_agent, algo)
 				f:close()
 			end
 		end
+
+		if result ~= 0 then
+			local f = io.open(dir .. "/../fail", "a")
+			f:write(string.format("%s: failed to run %s\n", os.date(), cmd))
+			f:close()
+		end
 	until result == 0
 	return agents + 1
 end
@@ -70,13 +76,23 @@ end
 function get_tlm_stats(d)
 	local n = 0
 	local tlm_max = 0
+	local sent = 0
 
-	for line in io.lines(d .. "/tlm.stats") do
-		n = n + 1
-		tlm_max = tlm_max + tonumber(line:match("%d+ (%d+)"))
+	local f = io.open(d .. "/tlm.stats", "r")
+
+	if (f) then
+		for line in f:lines() do
+			n = n + 1
+			tlm_max = tlm_max + tonumber(line:match("^%d+ (%d+)"))
+			sent = sent + tonumber(line:match(" (%d+)$"))
+		end
+
+		f:close()
+	else
+		return 0
 	end
 
-	return math.ceil(tlm_max / n)
+	return tostring(math.ceil(tlm_max / n)) .. ";" .. tostring(math.ceil(sent / n))
 end
 
 if arg[1] then
@@ -115,10 +131,12 @@ for i, n in ipairs(number_of_tiles) do
 	local mgm_data = get_average(dir .. "/var_dom/mgm-" .. n, "remote cache", agents)
 	mgm_data = mgm_data .. ";" .. get_average(dir .. "/var_dom/mgm-" .. n, "Instructions", agents)
 	mgm_data = mgm_data .. ";" .. get_tlm_stats(dir .. "/var_dom/mgm-" .. n)
+	mgm_data = mgm_data .. ";" .. get_average(dir .. "/var_dom/mgm-" .. n, "Time %(ns%)", agents)
 
 	local distrm_data = get_average(dir .. "/var_dom/distrm-" .. n, "remote cache", agents)
 	distrm_data = distrm_data .. ";" .. get_average(dir .. "/var_dom/distrm-" .. n, "Instructions", agents)
 	distrm_data = distrm_data .. ";" .. get_tlm_stats(dir .. "/var_dom/distrm-" .. n)
+	distrm_data = distrm_data .. ";" .. get_average(dir .. "/var_dom/distrm-" .. n, "Time %(ns%)", agents)
 
 	if not pd then
 		pd = io.open(dir .. "/var_dom/plot-var_dom.csv", "w")
@@ -136,7 +154,7 @@ pd = nil
 
 ---]]
 number_of_agents = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
---number_of_agents = { 6, 7, 8, 9 }
+--number_of_agents = { 1, 2, 3 }
 -- TODO: fix number of agents adjusting in generator.lua
 
 tiles = 3
@@ -169,10 +187,12 @@ for i, n in ipairs(number_of_agents) do
 	local mgm_data = get_average(dir .. "/var_ag/mgm-" .. n, "remote cache", n + 1)
 	mgm_data = mgm_data .. ";" .. get_average(dir .. "/var_ag/mgm-" .. n, "Instructions", n + 1)
 	mgm_data = mgm_data .. ";" .. get_tlm_stats(dir .. "/var_ag/mgm-" .. n)
+	mgm_data = mgm_data .. ";" .. get_average(dir .. "/var_ag/mgm-" .. n, "Time %(ns%)", n + 1)
 
 	local distrm_data = get_average(dir .. "/var_ag/distrm-" .. n, "remote cache", n + 1)
 	distrm_data = distrm_data .. ";" .. get_average(dir .. "/var_ag/distrm-" .. n, "Instructions", n + 1)
 	distrm_data = distrm_data .. ";" .. get_tlm_stats(dir .. "/var_ag/distrm-" .. n)
+	distrm_data = distrm_data .. ";" .. get_average(dir .. "/var_ag/distrm-" .. n, "Time %(ns%)", n + 1)
 
 	if not pd then
 		pd = io.open(dir .. "/var_ag/plot-var_ag.csv", "w")

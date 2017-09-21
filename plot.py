@@ -7,74 +7,44 @@ import numpy as np
 
 dir = sys.argv[1]
 
-def plotdata(xlabel, ylabel, x, y_mgm, y_distrm, file):
+def plotdata(xlabel, ylabel, x, y, file):
     fig = plt.figure()
 
-    ax1 = fig.add_subplot(111)
-
-    ax1.spines['top'].set_visible(False)
-    ax1.spines['bottom'].set_visible(False)
-    ax1.spines['right'].set_visible(False)
-    ax1.spines['left'].set_visible(False)
-
-    plt.grid(True, 'major', 'y', ls='-', lw=.5, c='k', alpha=.3)
-
-    plt.tick_params(axis='both', which='both', bottom='off', top='off', labelbottom='on', left='off', right='off', labelleft='on')
-
-    #ax1.set_title(title)
-    ax1.set_xlabel(xlabel)
-    ax1.set_ylabel(ylabel)
-
-    ax1.plot(x, y_mgm, lw=2.5, c='#1b9e77', label='ResMGM')
-    ax1.plot(x, y_distrm, lw=2.5, c='#d95f02', label='DistRM')
-
-    leg = ax1.legend(loc=0, framealpha=0.5)
+    addsubplot(fig, 111, xlabel, ylabel, x, y)
 
     fig.savefig(dir + 'plots/' + file + '.png')
     fig.savefig(dir + 'plots/' + file + '.pdf')
 
-def myplot(xlabel, x, data, file):
-    fig = plt.figure()
+def addsubplot(fig, id, xlabel, ylabel, x, y):
+    ax = fig.add_subplot(id)
 
-    ax1 = fig.add_subplot(131)
-
-    plt.grid(True, 'major', 'y', ls='-', lw=.5, c='k', alpha=.3)
-
-    plt.tick_params(axis='both', which='both', bottom='on', top='off', labelbottom='on', left='on', right='off', labelleft='on')
-
-    ax2 = fig.add_subplot(132)
+    #ax.spines['top'].set_visible(False)
+    #ax.spines['bottom'].set_visible(False)
+    #ax.spines['right'].set_visible(False)
+    #ax.spines['left'].set_visible(False)
 
     plt.grid(True, 'major', 'y', ls='-', lw=.5, c='k', alpha=.3)
 
     plt.tick_params(axis='both', which='both', bottom='on', top='off', labelbottom='on', left='on', right='off', labelleft='on')
 
-    ax3 = fig.add_subplot(133)
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
 
-    plt.grid(True, 'major', 'y', ls='-', lw=.5, c='k', alpha=.3)
+    ax.set_xlabel(xlabel, fontsize=18)
+    ax.set_ylabel(ylabel, fontsize=18)
 
-    plt.tick_params(axis='both', which='both', bottom='on', top='off', labelbottom='on', left='on', right='off', labelleft='on')
+    ax.plot(data[x], data[y + 'mgm'], lw=4.5, c='#1b9e77', label='ResMGM')
+    ax.plot(data[x], data[y + 'distrm'], lw=4.5, c='#d95f02', label='DistRM')
 
-    ax1.set_xlabel(xlabel)
-    ax1.set_ylabel('Number of TLM requests')
+    leg = ax.legend(loc=0, framealpha=0.5) 
 
-    ax2.set_xlabel(xlabel)
-    ax2.set_ylabel('Number of instructions')
+def plot(xlabel, x, data, file):
+    fig = plt.figure(figsize=(14, 8))
 
-    ax3.set_xlabel(xlabel)
-    ax3.set_ylabel('Maximum TLM used (Bytes)')
-
-    ax1.plot(data[x], data['tlmmgm'], lw=2.5, c='#1b9e77', label='ResMGM')
-    ax1.plot(data[x], data['tlmdistrm'], lw=2.5, c='#d95f02', label='DistRM')
-
-    ax2.plot(data[x], data['instmgm'], lw=2.5, c='#1b9e77', label='ResMGM')
-    ax2.plot(data[x], data['instdistrm'], lw=2.5, c='#d95f02', label='DistRM')
-
-    ax3.plot(data[x], data['memmgm'], lw=2.5, c='#1b9e77', label='ResMGM')
-    ax3.plot(data[x], data['memdistrm'], lw=2.5, c='#d95f02', label='DistRM')
-
-    leg1 = ax1.legend(loc=0, framealpha=0.5)
-    leg2 = ax2.legend(loc=0, framealpha=0.5)
-    leg3 = ax3.legend(loc=0, framealpha=0.5)
+    addsubplot(fig, 141, xlabel, 'Number of TLM requests', x, 'tlm')
+    addsubplot(fig, 142, xlabel, 'Number of instructions', x, 'inst')
+    addsubplot(fig, 143, xlabel, 'Maximum TLM used (bytes)', x, 'mem')
+    addsubplot(fig, 144, xlabel, 'Time (ns)', x, 't')
 
     plt.subplots_adjust(wspace=0.4)
 
@@ -83,17 +53,15 @@ def myplot(xlabel, x, data, file):
     fig.savefig(dir + 'plots/' + file + '.png')
     fig.savefig(dir + 'plots/' + file + '.pdf')
 
-data = np.genfromtxt(dir + 'var_dom/plot-var_dom.csv', delimiter=';', names='tiles,tlmmgm,instmgm,memmgm,tlmdistrm,instdistrm,memdistrm')
+data = np.genfromtxt(dir + 'var_dom/plot-var_dom.csv', delimiter=';', names='tiles,tlmmgm,instmgm,memmgm,msgmgm,tmgm,tlmdistrm,instdistrm,memdistrm,msgdistrm,tdistrm')
 
-plotdata('Number of tiles', 'Number of TLM requests', data['tiles'], data['tlmmgm'], data['tlmdistrm'], 'var_dom-tlm')
-plotdata('Number of tiles', 'Number of instructions', data['tiles'], data['instmgm'], data['instdistrm'], 'var_dom-inst')
+plot('Number of tiles', 'tiles', data, 'var_dom')
 
-myplot('Number of tiles', 'tiles', data, 'var_dom')
+plotdata('Number of tiles', 'Bytes sent', 'tiles', 'msg', 'var_dom-msg')
 
-data = np.genfromtxt(dir + '/var_ag/plot-var_ag.csv', delimiter=';', names='agents,tlmmgm,instmgm,memmgm,tlmdistrm,instdistrm,memdistrm')
+data = np.genfromtxt(dir + '/var_ag/plot-var_ag.csv', delimiter=';', names='agents,tlmmgm,instmgm,memmgm,msgmgm,tmgm,tlmdistrm,instdistrm,memdistrm,msgdistrm,tdistrm')
 
-plotdata('Number of agents', 'Number of TLM requests', data['agents'], data['tlmmgm'], data['tlmdistrm'], 'var_ag-tlm')
-plotdata('Number of agents', 'Number of instructions', data['agents'], data['instmgm'], data['instdistrm'], 'var_ag-inst')
+plot('Number of agents', 'agents', data, 'var_ag')
 
-myplot('Number of agents', 'agents', data, 'var_ag')
+plotdata('Number of agents', 'Bytes sent', 'agents', 'msg', 'var_ag-msg')
 

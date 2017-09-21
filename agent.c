@@ -48,6 +48,8 @@ agent_t * agent_new() {
 
 	a->tlm = tlm;
 
+	a->bytes_sent = 0;
+
 	return a;
 }
 
@@ -311,6 +313,10 @@ double agent_evaluate_view(agent_t *a, view_t *v) {
 
 void agent_send(agent_t *s, agent_t *r, message_t *msg) {
 	msg->from = s;
+
+	if (s) {
+		s->bytes_sent += msg->size;
+	}
 
 	pthread_mutex_lock(&r->mt);
 
