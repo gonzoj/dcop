@@ -90,7 +90,7 @@ function get_tlm_stats(d)
 
 		f:close()
 	else
-		return 0
+		return "0;0"
 	end
 
 	return tostring(math.ceil(tlm_max / n)) .. ";" .. tostring(math.ceil(sent / n))
@@ -110,7 +110,7 @@ else
 end
 
 os.execute("mkdir -p " .. dir .. "/plots")
----[[
+--[[
 number_of_tiles = { 1, 2, 3, 4, 5, 6, 7, 8 }
 --number_of_tiles = { 1, 2, 3 }
 
@@ -153,7 +153,6 @@ end
 pd:close()
 pd = nil
 
----]]
 number_of_agents = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 --number_of_agents = { 1, 2, 3 }
 -- TODO: fix number of agents adjusting in generator.lua
@@ -207,6 +206,48 @@ for i, n in ipairs(number_of_agents) do
 end 
 
 pd:close()
+pd = nil
+--]]
+number_of_tiles = { 1, 2, 3, 4, 5, 6, 7, 8 }
+
+system_load = 1.0
+cores_per_agent = 4
+
+for i, n in ipairs(number_of_tiles) do
+	if sniper then
+		run(dir .. "/var_hyb/mgm-" .. n, n, system_load, cores_per_agent, "mgm")
+
+		local f = io.open(dir .. "/var_hyb/mgm-" .. n .. "/seed", "r")
+		last_seed = tonumber(f:read("*all"))
+		f:close()
+		run(dir .. "/var_hyb/distrm-" .. n, n, system_load, cores_per_agent, "distrm")
+	end
+
+	local agents = math.ceil(math.ceil(n * tile_size * system_load) / cores_per_agent) + 1
+
+	local mgm_data = get_average(dir .. "/var_hyb/mgm-" .. n, "remote cache", agents)
+	mgm_data = mgm_data .. ";" .. get_average(dir .. "/var_hyb/mgm-" .. n, "Instructions", agents)
+	mgm_data = mgm_data .. ";" .. get_tlm_stats(dir .. "/var_hyb/mgm-" .. n)
+	mgm_data = mgm_data .. ";" .. get_average(dir .. "/var_hyb/mgm-" .. n, "Time %(ns%)", agents)
+
+	local distrm_data = get_average(dir .. "/var_hyb/distrm-" .. n, "remote cache", agents)
+	distrm_data = distrm_data .. ";" .. get_average(dir .. "/var_hyb/distrm-" .. n, "Instructions", agents)
+	distrm_data = distrm_data .. ";" .. get_tlm_stats(dir .. "/var_hyb/distrm-" .. n)
+	distrm_data = distrm_data .. ";" .. get_average(dir .. "/var_hyb/distrm-" .. n, "Time %(ns%)", agents)
+
+	if not pd then
+		pd = io.open(dir .. "/var_hyb/plot-var_hyb.csv", "w")
+	end
+	pd:write(string.format("%i;%s;%s\n", n, mgm_data, distrm_data))
+
+	os.execute(string.format("cp %s/var_hyb/mgm-%i/cpi-stack.png %s/plots/cpi-stack-mgm-var_hyb-%i.png", dir, n, dir, n))
+	os.execute(string.format("convert %s/plots/cpi-stack-mgm-var_hyb-%i.png %s/plots/cpi-stack-mgm-var_hyb-%i.pdf", dir, n, dir, n))
+	os.execute(string.format("cp %s/var_hyb/distrm-%i/cpi-stack.png %s/plots/cpi-stack-distrm-var_hyb-%i.png", dir, n, dir, n))
+	os.execute(string.format("convert %s/plots/cpi-stack-distrm-var_hyb-%i.png %s/plots/cpi-stack-distrm-var_hyb-%i.pdf", dir, n, dir, n))
+end 
+
+pd:close()
+pd = nil
 
 print("plotting with matplotlib...")
 os.execute("python plot.py " .. dir .. "/")
