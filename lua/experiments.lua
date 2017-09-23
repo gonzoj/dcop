@@ -2,10 +2,10 @@ dir = "../extern/" .. os.date("%m-%d-%H:%M")
 
 tile_size = 6
 cluster_size = 12
-region_size = 5
+region_size = 2
 
 max_distance = 20
-max_tiles = 2
+max_tiles = 1
 
 function strtime(t)
 	local h, m, s
@@ -208,7 +208,8 @@ end
 pd:close()
 pd = nil
 --]]
-number_of_tiles = { 1, 2, 3, 4, 5, 6, 7, 8 }
+---[[
+number_of_tiles = { 8 }
 
 system_load = 1.0
 cores_per_agent = 4
@@ -248,7 +249,7 @@ end
 
 pd:close()
 pd = nil
-
+--]]
 print("plotting with matplotlib...")
 os.execute("python plot.py " .. dir .. "/")
 

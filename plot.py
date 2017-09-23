@@ -33,10 +33,12 @@ def addsubplot(fig, id, xlabel, ylabel, x, y):
     ax.set_xlabel(xlabel, fontsize=18)
     ax.set_ylabel(ylabel, fontsize=18)
 
-    ax.plot(data[x], data[y + 'mgm'], lw=4.5, c='#1b9e77', label='ResMGM')
-    ax.plot(data[x], data[y + 'distrm'], lw=4.5, c='#d95f02', label='DistRM')
+    lmgm = ax.plot(data[x], data[y + 'mgm'], lw=4.5, c='#1b9e77', label='ResMGM')
+    ldistrm = ax.plot(data[x], data[y + 'distrm'], lw=4.5, c='#d95f02', label='DistRM')
 
     leg = ax.legend(loc=0, framealpha=0.5) 
+
+    return (lmgm, ldistrm)
 
 def plot(xlabel, x, data, file):
     fig = plt.figure(figsize=(14, 8))
@@ -44,9 +46,11 @@ def plot(xlabel, x, data, file):
     addsubplot(fig, 141, xlabel, 'Number of TLM requests', x, 'tlm')
     addsubplot(fig, 142, xlabel, 'Number of instructions', x, 'inst')
     addsubplot(fig, 143, xlabel, 'Maximum TLM used (bytes)', x, 'mem')
-    addsubplot(fig, 144, xlabel, 'Time (ns)', x, 't')
+    lines = addsubplot(fig, 144, xlabel, 'Time (ns)', x, 't')
 
     plt.subplots_adjust(wspace=0.4)
+
+    #plt.legend(lines, ('ResMGM', 'DistRM'), loc = 'lower center', bbox_to_anchor = (0,-0.1,1,1), bbox_transform = plt.gcf().transFigure)
 
     plt.tight_layout()
 
