@@ -209,7 +209,7 @@ pd:close()
 pd = nil
 --]]
 ---[[
-number_of_tiles = { 8 }
+number_of_tiles = { 1, 2, 3, 4, 5, 6, 7, 8 }
 
 system_load = 1.0
 cores_per_agent = 4
