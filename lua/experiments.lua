@@ -2,10 +2,10 @@ dir = "../extern/" .. os.date("%m-%d-%H:%M")
 
 tile_size = 6
 cluster_size = 12
-region_size = 2
+region_size = 5
 
 max_distance = 20
-max_tiles = 1
+max_tiles = 2
 
 function strtime(t)
 	local h, m, s
@@ -152,7 +152,7 @@ end
 
 pd:close()
 pd = nil
-
+--]]
 number_of_agents = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 --number_of_agents = { 1, 2, 3 }
 -- TODO: fix number of agents adjusting in generator.lua
@@ -208,7 +208,7 @@ end
 pd:close()
 pd = nil
 --]]
----[[
+--[[
 number_of_tiles = { 1, 2, 3, 4, 5, 6, 7, 8 }
 
 system_load = 1.0
