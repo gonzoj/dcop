@@ -110,7 +110,7 @@ else
 end
 
 os.execute("mkdir -p " .. dir .. "/plots")
---[[
+---[[
 number_of_tiles = { 1, 2, 3, 4, 5, 6, 7, 8 }
 --number_of_tiles = { 1, 2, 3 }
 
