@@ -152,7 +152,7 @@ end
 
 pd:close()
 pd = nil
---]]
+
 number_of_agents = { 1, 2, 3, 4, 5, 6, 7, 8, 9 }
 --number_of_agents = { 1, 2, 3 }
 -- TODO: fix number of agents adjusting in generator.lua
@@ -208,7 +208,7 @@ end
 pd:close()
 pd = nil
 --]]
---[[
+---[[
 number_of_tiles = { 1, 2, 3, 4, 5, 6, 7, 8 }
 
 system_load = 1.0
